@@ -61,7 +61,7 @@
                                 </Rectangle>
                                 <StackPanel Orientation="Vertical" Margin="8,0,0,0">
                                     <TextBlock Text="Programs &amp; Features" FontWeight="SemiBold" />
-                                    <TextBlock Text="Manage Windows and external apps" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                    <TextBlock Text="Manage Programs" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
                                 </StackPanel>
                             </StackPanel>
                         </Button>
