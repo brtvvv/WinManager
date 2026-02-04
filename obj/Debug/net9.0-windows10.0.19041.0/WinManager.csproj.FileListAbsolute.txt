@@ -23,3 +23,4 @@ C:\Users\brtvvv\Desktop\praca inżynierska\Winhance-main\WinManager\obj\Debug\ne
 C:\Users\brtvvv\Desktop\praca inżynierska\Winhance-main\WinManager\obj\Debug\net9.0-windows10.0.19041.0\WinManager.pdb
 C:\Users\brtvvv\Desktop\praca inżynierska\Winhance-main\WinManager\obj\Debug\net9.0-windows10.0.19041.0\WinManager.genruntimeconfig.cache
 C:\Users\brtvvv\Desktop\praca inżynierska\Winhance-main\WinManager\obj\Debug\net9.0-windows10.0.19041.0\ref\WinManager.dll
+C:\Users\brtvvv\Desktop\praca inżynierska\Winhance-main\WinManager\obj\Debug\net9.0-windows10.0.19041.0\WinManager.sourcelink.json

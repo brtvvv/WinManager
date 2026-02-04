@@ -6,7 +6,7 @@
         xmlns:vm="clr-namespace:WinManager.ViewModels"
         xmlns:model="clr-namespace:WinManager.Models"
         mc:Ignorable="d"
-        Title="WinManager - Programs &amp; Features"
+        Title="WinManager"
         Height="900"
         Width="1500"
         WindowStartupLocation="CenterScreen"

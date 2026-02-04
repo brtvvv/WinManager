@@ -1,0 +1,17 @@
+# Build artifacts
+bin/
+obj/
+
+# Logs
+error.log
+*.log
+
+# User-specific
+*.user
+*.suo
+*.rsuser
+
+# Rider / VS cache
+.idea/
+.vs/
+
