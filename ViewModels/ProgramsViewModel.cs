@@ -199,7 +199,7 @@ public class ProgramsViewModel : ObservableObject
         }
     }
 
-    /// <summary>Uninstall selected Windows apps via WindowsAppService.</summary>
+    /// <summary>Uninstall selected Windows apps via WindowsAppService; then auto-refresh installed list and remap statuses.</summary>
     private async Task UninstallSelectedWindowsAsync()
     {
         var selected = WindowsApps.Where(x => x.IsSelected).ToList();
@@ -211,9 +211,16 @@ public class ProgramsViewModel : ObservableObject
         try
         {
             IsBusy = true;
-            Status = $"Uninstalling ({selected.Count})";
+            if (!_windowsService.IsAdministrator)
+            {
+                AppendLog("Warning: not running as Administrator; uninstall may fail for some apps.");
+            }
+            Status = $"Uninstalling ({selected.Count})...";
             await _windowsService.UninstallAsync(selected, AppendLog, CancellationToken.None);
-            await _windowsService.RefreshStatusAsync(selected, CancellationToken.None);
+            Status = "Refreshing statuses...";
+            await _windowsService.RefreshStatusAsync(WindowsApps, CancellationToken.None);
+            WindowsAppsView.Refresh();
+            Status = "Ready";
         }
         finally
         {

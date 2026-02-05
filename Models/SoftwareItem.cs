@@ -60,6 +60,9 @@ public class SoftwareItem : ObservableObject
         set => SetProperty(ref _isBusy, value);
     }
 
+    /// <summary>Appx package Name(s) detected as installed (e.g. Microsoft.WindowsAlarms). Used for uninstall.</summary>
+    public List<string> InstalledPackageNames { get; } = new();
+
     public bool SupportsInstall => !string.IsNullOrWhiteSpace(WingetId);
 }
 

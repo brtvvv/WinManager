@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\brtvvv\\Desktop\\praca inżynierska\\Winhance-main\\WinManager\\WinManager.csproj": {}
+    "C:\\Users\\brtvvv\\desktop\\WinManager\\WinManager.csproj": {}
   },
   "projects": {
-    "C:\\Users\\brtvvv\\Desktop\\praca inżynierska\\Winhance-main\\WinManager\\WinManager.csproj": {
+    "C:\\Users\\brtvvv\\desktop\\WinManager\\WinManager.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\brtvvv\\Desktop\\praca inżynierska\\Winhance-main\\WinManager\\WinManager.csproj",
+        "projectUniqueName": "C:\\Users\\brtvvv\\desktop\\WinManager\\WinManager.csproj",
         "projectName": "WinManager",
-        "projectPath": "C:\\Users\\brtvvv\\Desktop\\praca inżynierska\\Winhance-main\\WinManager\\WinManager.csproj",
+        "projectPath": "C:\\Users\\brtvvv\\desktop\\WinManager\\WinManager.csproj",
         "packagesPath": "C:\\Users\\brtvvv\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\brtvvv\\Desktop\\praca inżynierska\\Winhance-main\\WinManager\\obj\\",
+        "outputPath": "C:\\Users\\brtvvv\\desktop\\WinManager\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\brtvvv\\AppData\\Roaming\\NuGet\\NuGet.Config"

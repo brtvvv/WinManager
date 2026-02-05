@@ -1,15 +1,16 @@
 using System.Security.Principal;
-using System.Text;
 using WinManager.Models;
 
 namespace WinManager.Services;
 
 /// <summary>
 /// Handles Windows (inbox) apps: status detection, winget/appx install/uninstall, definitions list.
+/// Uses PowerShellAppxService for real Get-AppxPackage -AllUsers data.
 /// </summary>
 public class WindowsAppService
 {
     private readonly ProcessRunner _runner = new();
+    private readonly PowerShellAppxService _appxService = new();
 
     public bool IsAdministrator
     {
@@ -21,33 +22,75 @@ public class WindowsAppService
         }
     }
 
-    /// <summary>Builds app definitions and assigns current status notes.</summary>
+    /// <summary>Builds app definitions and assigns current status from Get-AppxPackage -AllUsers.</summary>
     public async Task<IReadOnlyList<SoftwareItem>> GetWindowsAppsAsync(CancellationToken cancellationToken = default)
     {
         var definitions = CreateDefinitions();
-        var installedAppxNames = await GetInstalledAppxNames(cancellationToken);
-
-        foreach (var app in definitions)
-        {
-            app.Status = await DetectStatusAsync(app, installedAppxNames, cancellationToken);
-            app.StatusNote = app.Status switch
-            {
-                AppStatus.Installed => "Installed",
-                AppStatus.NotInstalled => "Not installed",
-                _ => "Unknown"
-            };
-        }
-
+        var installedList = await _appxService.GetInstalledAppxAllUsersAsync(cancellationToken);
+        MapStatusAndPackageNames(definitions, installedList);
         return definitions;
     }
 
-    /// <summary>Update status for a set of apps based on current system state.</summary>
+    /// <summary>Re-fetches installed Appx list and updates status + InstalledPackageNames for all given apps.</summary>
     public async Task RefreshStatusAsync(IEnumerable<SoftwareItem> apps, CancellationToken cancellationToken = default)
     {
-        var installedAppxNames = await GetInstalledAppxNames(cancellationToken);
+        var installedList = await _appxService.GetInstalledAppxAllUsersAsync(cancellationToken);
+        MapStatusAndPackageNames(apps.ToList(), installedList);
+    }
+
+    /// <summary>Maps installed Appx list to app status and InstalledPackageNames; updates StatusNote.</summary>
+    private static void MapStatusAndPackageNames(IList<SoftwareItem> apps, List<AppxInstalledItem> installedList)
+    {
+        var installedByName = installedList
+            .GroupBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
         foreach (var app in apps)
         {
-            app.Status = await DetectStatusAsync(app, installedAppxNames, cancellationToken);
+            app.InstalledPackageNames.Clear();
+            var matchedNames = new List<string>();
+
+            foreach (var keyword in app.DetectionKeywords)
+            {
+                foreach (var kv in installedByName)
+                {
+                    if (kv.Key.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (!matchedNames.Contains(kv.Key, StringComparer.OrdinalIgnoreCase))
+                        {
+                            matchedNames.Add(kv.Key);
+                        }
+                    }
+                }
+            }
+
+            if (matchedNames.Count > 0)
+            {
+                app.Status = AppStatus.Installed;
+                app.InstalledPackageNames.AddRange(matchedNames);
+                app.StatusNote = "Installed";
+            }
+            else if (!string.IsNullOrWhiteSpace(app.WingetId))
+            {
+                var wingetInstalled = installedList.Any(x =>
+                    x.Name.Equals(app.WingetId, StringComparison.OrdinalIgnoreCase));
+                if (wingetInstalled)
+                {
+                    app.Status = AppStatus.Installed;
+                    app.InstalledPackageNames.Add(app.WingetId!);
+                    app.StatusNote = "Installed";
+                }
+                else
+                {
+                    app.Status = AppStatus.NotInstalled;
+                    app.StatusNote = "Not installed";
+                }
+            }
+            else
+            {
+                app.Status = AppStatus.NotInstalled;
+                app.StatusNote = "Not installed";
+            }
         }
     }
 
@@ -76,72 +119,58 @@ public class WindowsAppService
         }
     }
 
-    /// <summary>Uninstall selected apps via winget or Appx removal fallback.</summary>
+    /// <summary>Uninstall selected apps: only Installed; uses Get-AppxPackage -AllUsers &lt;Name&gt; | Remove-AppxPackage -AllUsers.</summary>
     public async Task UninstallAsync(IEnumerable<SoftwareItem> apps, Action<string> log, CancellationToken cancellationToken = default)
     {
-        foreach (var app in apps)
+        var toUninstall = apps.Where(a => a.Status == AppStatus.Installed && a.InstalledPackageNames.Count > 0).ToList();
+        var total = toUninstall.Count;
+        var index = 0;
+
+        foreach (var app in toUninstall)
         {
             app.IsBusy = true;
-            log($"[Uninstall] {app.Name}");
+            index++;
+            var currentOp = $"Uninstalling {index}/{total}: {app.Name}";
+            log($"[Uninstall] {currentOp}");
 
-            if (!string.IsNullOrWhiteSpace(app.WingetId))
+            foreach (var packageName in app.InstalledPackageNames)
             {
-                var args = $"uninstall --id \"{app.WingetId}\" --exact --silent --accept-source-agreements --accept-package-agreements";
-                var result = await _runner.RunAsync("winget", args, cancellationToken);
-                app.StatusNote = result.Output.Trim();
-                log(result.Output);
-            }
-            else if (app.DetectionKeywords.Any())
-            {
-                var keyword = app.DetectionKeywords.First();
-                var ps = new StringBuilder();
-                ps.Append($"Get-AppxPackage -AllUsers | Where-Object {{$_.Name -like '*{keyword}*'}} ");
-                ps.Append("| ForEach-Object { Remove-AppxPackage -AllUsers $_.PackageFullName }");
-                var result = await _runner.RunAsync("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"{ps}\"", cancellationToken);
-                app.StatusNote = result.Output.Trim();
-                log(result.Output);
-            }
-            else
-            {
-                app.StatusNote = "Cannot uninstall (no pattern defined).";
-                log($"No uninstall pattern for {app.Name}.");
+                if (string.IsNullOrWhiteSpace(packageName))
+                {
+                    continue;
+                }
+
+                // Get-AppxPackage -AllUsers <PackageName> | Remove-AppxPackage -AllUsers (single quotes avoid -Command escaping)
+                var safeName = packageName.Replace("'", "''");
+                var ps = $"Get-AppxPackage -AllUsers -Name '{safeName}' | Remove-AppxPackage -AllUsers";
+                var result = await _runner.RunAsync("powershell.exe",
+                    $"-NoProfile -ExecutionPolicy Bypass -Command \"{ps}\"",
+                    cancellationToken);
+
+                app.StatusNote = result.Output?.Trim() ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(result.Output))
+                {
+                    log(result.Output);
+                }
+                if (!result.Success && result.ExitCode != 0)
+                {
+                    log($"Error (exit {result.ExitCode}): {app.Name} - {result.Output?.Trim() ?? "Unknown error"}");
+                }
             }
 
             app.IsBusy = false;
         }
-    }
 
-    private async Task<HashSet<string>> GetInstalledAppxNames(CancellationToken cancellationToken)
-    {
-        var names = await _runner.RunPowerShellListAsync("Get-AppxPackage -AllUsers | Select-Object -ExpandProperty Name", cancellationToken);
-        return names.ToHashSet(StringComparer.OrdinalIgnoreCase);
-    }
-
-    private async Task<AppStatus> DetectStatusAsync(SoftwareItem app, HashSet<string> installedAppxNames, CancellationToken cancellationToken)
-    {
-        if (app.DetectionKeywords.Any(pattern => installedAppxNames.Any(name => name.Contains(pattern, StringComparison.OrdinalIgnoreCase))))
+        if (toUninstall.Count == 0)
         {
-            return AppStatus.Installed;
+            foreach (var app in apps)
+            {
+                if (app.Status != AppStatus.Installed)
+                {
+                    log($"[Uninstall] Skipped (not installed): {app.Name}");
+                }
+            }
         }
-
-        if (!string.IsNullOrWhiteSpace(app.WingetId))
-        {
-            var installed = await IsWingetInstalled(app.WingetId!, cancellationToken);
-            return installed ? AppStatus.Installed : AppStatus.NotInstalled;
-        }
-
-        return AppStatus.NotInstalled;
-    }
-
-    private async Task<bool> IsWingetInstalled(string wingetId, CancellationToken cancellationToken)
-    {
-        var result = await _runner.RunAsync("winget", $"list --id \"{wingetId}\" --exact --accept-source-agreements --accept-package-agreements", cancellationToken);
-        if (!result.Success)
-        {
-            return false;
-        }
-
-        return result.Output.Contains(wingetId, StringComparison.OrdinalIgnoreCase);
     }
 
     private static List<SoftwareItem> CreateDefinitions()
