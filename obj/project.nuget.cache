@@ -1,9 +1,13 @@
 {
   "version": 2,
-  "dgSpecHash": "MM1wjDydb3s=",
+  "dgSpecHash": "iu3X0A3LtI8=",
   "success": true,
-  "projectFilePath": "C:\\Users\\brtvvv\\desktop\\WinManager\\WinManager.csproj",
+  "projectFilePath": "C:\\Users\\brtvvv\\Documents\\WinManager\\WinManager\\WinManager.csproj",
   "expectedPackageFiles": [
+    "C:\\Users\\brtvvv\\.nuget\\packages\\microsoft.netcore.app.ref\\9.0.13\\microsoft.netcore.app.ref.9.0.13.nupkg.sha512",
+    "C:\\Users\\brtvvv\\.nuget\\packages\\microsoft.windowsdesktop.app.ref\\9.0.13\\microsoft.windowsdesktop.app.ref.9.0.13.nupkg.sha512",
+    "C:\\Users\\brtvvv\\.nuget\\packages\\microsoft.aspnetcore.app.ref\\9.0.13\\microsoft.aspnetcore.app.ref.9.0.13.nupkg.sha512",
+    "C:\\Users\\brtvvv\\.nuget\\packages\\microsoft.netcore.app.host.win-x64\\9.0.13\\microsoft.netcore.app.host.win-x64.9.0.13.nupkg.sha512",
     "C:\\Users\\brtvvv\\.nuget\\packages\\microsoft.windows.sdk.net.ref\\10.0.19041.57\\microsoft.windows.sdk.net.ref.10.0.19041.57.nupkg.sha512"
   ],
   "logs": []

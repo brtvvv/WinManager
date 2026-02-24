@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\brtvvv\\desktop\\WinManager\\WinManager.csproj": {}
+    "C:\\Users\\brtvvv\\Documents\\WinManager\\WinManager\\WinManager.csproj": {}
   },
   "projects": {
-    "C:\\Users\\brtvvv\\desktop\\WinManager\\WinManager.csproj": {
+    "C:\\Users\\brtvvv\\Documents\\WinManager\\WinManager\\WinManager.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\brtvvv\\desktop\\WinManager\\WinManager.csproj",
+        "projectUniqueName": "C:\\Users\\brtvvv\\Documents\\WinManager\\WinManager\\WinManager.csproj",
         "projectName": "WinManager",
-        "projectPath": "C:\\Users\\brtvvv\\desktop\\WinManager\\WinManager.csproj",
+        "projectPath": "C:\\Users\\brtvvv\\Documents\\WinManager\\WinManager\\WinManager.csproj",
         "packagesPath": "C:\\Users\\brtvvv\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\brtvvv\\desktop\\WinManager\\obj\\",
+        "outputPath": "C:\\Users\\brtvvv\\Documents\\WinManager\\WinManager\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\brtvvv\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -38,7 +38,7 @@
           "auditLevel": "low",
           "auditMode": "direct"
         },
-        "SdkAnalysisLevel": "9.0.300"
+        "SdkAnalysisLevel": "10.0.100"
       },
       "frameworks": {
         "net9.0-windows10.0.19041": {
@@ -56,8 +56,24 @@
           "warn": true,
           "downloadDependencies": [
             {
+              "name": "Microsoft.AspNetCore.App.Ref",
+              "version": "[9.0.13, 9.0.13]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Host.win-x64",
+              "version": "[9.0.13, 9.0.13]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Ref",
+              "version": "[9.0.13, 9.0.13]"
+            },
+            {
               "name": "Microsoft.Windows.SDK.NET.Ref",
               "version": "[10.0.19041.57, 10.0.19041.57]"
+            },
+            {
+              "name": "Microsoft.WindowsDesktop.App.Ref",
+              "version": "[9.0.13, 9.0.13]"
             }
           ],
           "frameworkReferences": {
@@ -71,7 +87,7 @@
               "privateAssets": "none"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.310/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.103/PortableRuntimeIdentifierGraph.json"
         }
       }
     }
