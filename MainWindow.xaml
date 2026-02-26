@@ -241,38 +241,55 @@
                                     <ItemsControl ItemsSource="{Binding Programs.WindowsAppsView}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
-                                                <WrapPanel Orientation="Horizontal" ItemWidth="360" MinWidth="360" />
+                                                <WrapPanel Orientation="Horizontal" ItemWidth="300" MinWidth="300" />
                                             </ItemsPanelTemplate>
                                         </ItemsControl.ItemsPanel>
                                         <ItemsControl.ItemContainerStyle>
                                             <Style TargetType="ContentPresenter">
-                                                <Setter Property="Margin" Value="8" />
+                                                <Setter Property="Margin" Value="3" />
                                             </Style>
                                         </ItemsControl.ItemContainerStyle>
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
                                                 <Border Background="{StaticResource SurfaceBrush}"
-                                                        CornerRadius="12"
-                                                        Padding="12"
+                                                        CornerRadius="8"
+                                                        Padding="10,7"
                                                         BorderBrush="{StaticResource BorderBrushMono}"
                                                         BorderThickness="1">
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="Auto" />
                                                             <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
                                                         </Grid.ColumnDefinitions>
-                                                        <StackPanel Orientation="Vertical" VerticalAlignment="Center" Margin="0,0,10,0">
-                                                            <CheckBox IsChecked="{Binding IsSelected}" />
-                                                        </StackPanel>
-                                                        <StackPanel Grid.Column="1" Orientation="Vertical">
-                                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14" />
-                                                            <TextBlock Text="{Binding Description}" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" />
-                                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                                                <TextBlock Text="Status:" Foreground="{StaticResource TextSecondaryBrush}" />
-                                                                <TextBlock Text="{Binding Status}" FontWeight="SemiBold" Margin="6,0,0,0" />
-                                                            </StackPanel>
-                                                            <TextBlock Text="{Binding StatusNote}" Foreground="{StaticResource MutedBrush}" FontSize="11" />
-                                                        </StackPanel>
+                                                        <CheckBox IsChecked="{Binding IsSelected}"
+                                                                  VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Column="1"
+                                                                   Text="{Binding Name}"
+                                                                   FontWeight="SemiBold"
+                                                                   FontSize="13"
+                                                                   VerticalAlignment="Center"
+                                                                   Margin="8,0,0,0"
+                                                                   Foreground="{StaticResource TextPrimaryBrush}" />
+                                                        <TextBlock Grid.Column="2"
+                                                                   VerticalAlignment="Center"
+                                                                   HorizontalAlignment="Right"
+                                                                   FontSize="14"
+                                                                   Margin="8,0,2,0">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Text" Value="✕" />
+                                                                    <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding Status}"
+                                                                                     Value="{x:Static model:AppStatus.Installed}">
+                                                                            <Setter Property="Text" Value="●" />
+                                                                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
                                                     </Grid>
                                                 </Border>
                                             </DataTemplate>
