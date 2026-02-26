@@ -11,11 +11,14 @@ public class MainViewModel : ObservableObject
     public MainViewModel()
     {
         Programs = new ProgramsViewModel();
+        Optimization = new OptimizationViewModel();
         SelectedSection = AppSection.Programs;
         SelectSectionCommand = new RelayCommand<AppSection>(s => SelectedSection = s);
     }
 
     public ProgramsViewModel Programs { get; }
+
+    public OptimizationViewModel Optimization { get; }
 
     public RelayCommand<AppSection> SelectSectionCommand { get; }
 

@@ -5,6 +5,8 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:WinManager.ViewModels"
         xmlns:model="clr-namespace:WinManager.Models"
+        xmlns:optvm="clr-namespace:WinManager.ViewModels.Optimization"
+        xmlns:optv="clr-namespace:WinManager.Views.Optimization"
         mc:Ignorable="d"
         Title="WinManager"
         Height="900"
@@ -350,13 +352,170 @@
                 </TabControl>
             </Grid>
 
-            <!-- Optimization placeholder -->
+            <!-- Optimization content -->
             <Grid Visibility="{Binding SelectedSection, Converter={StaticResource SectionToVisibilityConverter}, ConverterParameter=Optimization}">
-                <TextBlock Text="{Binding OptimizationMessage}"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           FontSize="18"
-                           Foreground="{StaticResource TextSecondaryBrush}" />
+
+                <!-- Category list (visible when no sub-category is selected) -->
+                <Grid>
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Optimization.ShowCategories}" Value="False">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Border Background="{StaticResource SurfaceBrush}"
+                            CornerRadius="14"
+                            Padding="14"
+                            BorderBrush="{StaticResource BorderBrushMono}"
+                            BorderThickness="1">
+                        <StackPanel>
+                            <TextBlock Text="Optimization"
+                                       FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}" />
+                            <TextBlock Text="Select a category to optimize your system."
+                                       Margin="0,6,0,0"
+                                       Foreground="{StaticResource TextSecondaryBrush}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Row="1"
+                            Margin="0,14,0,0"
+                            Background="{StaticResource SurfaceAltBrush}"
+                            Padding="10"
+                            CornerRadius="14"
+                            BorderBrush="{StaticResource BorderBrushMono}"
+                            BorderThickness="1">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding Optimization.Categories}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Command="{Binding DataContext.Optimization.SelectCategoryCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding Key}"
+                                                Margin="4,4"
+                                                FocusVisualStyle="{x:Null}">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border x:Name="cardBorder"
+                                                            Background="{StaticResource SurfaceBrush}"
+                                                            CornerRadius="12"
+                                                            Padding="16,14"
+                                                            BorderBrush="{StaticResource BorderBrushMono}"
+                                                            BorderThickness="1"
+                                                            Cursor="Hand">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <StackPanel VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding Name}"
+                                                                           FontWeight="SemiBold"
+                                                                           FontSize="14"
+                                                                           Foreground="{StaticResource TextPrimaryBrush}" />
+                                                                <TextBlock Text="{Binding Description}"
+                                                                           Margin="0,4,0,0"
+                                                                           Foreground="{StaticResource TextSecondaryBrush}" />
+                                                            </StackPanel>
+                                                            <TextBlock Grid.Column="1"
+                                                                       Text="›"
+                                                                       FontSize="22"
+                                                                       VerticalAlignment="Center"
+                                                                       Foreground="{StaticResource MutedBrush}"
+                                                                       Margin="12,0,4,0" />
+                                                        </Grid>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="cardBorder" Property="Background"
+                                                                    Value="{StaticResource SurfaceAltBrush}" />
+                                                        </Trigger>
+                                                        <Trigger Property="IsPressed" Value="True">
+                                                            <Setter TargetName="cardBorder" Property="Background"
+                                                                    Value="{StaticResource PrimaryLightBrush}" />
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Border>
+                </Grid>
+
+                <!-- Category detail view (visible when a sub-category is selected) -->
+                <Grid>
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Optimization.ShowCategories}" Value="False">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Border Background="{StaticResource SurfaceBrush}"
+                            CornerRadius="14"
+                            Padding="14"
+                            BorderBrush="{StaticResource BorderBrushMono}"
+                            BorderThickness="1">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button Content="← Back"
+                                    Command="{Binding Optimization.GoBackCommand}"
+                                    VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Optimization.CurrentCategoryView.Title}"
+                                       FontSize="18"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"
+                                       Margin="12,0,0,0"
+                                       Foreground="{StaticResource TextPrimaryBrush}" />
+                        </StackPanel>
+                    </Border>
+
+                    <ContentControl Grid.Row="1"
+                                    Margin="0,14,0,0"
+                                    Content="{Binding Optimization.CurrentCategoryView}"
+                                    HorizontalContentAlignment="Stretch"
+                                    VerticalContentAlignment="Stretch">
+                        <ContentControl.Resources>
+                            <DataTemplate DataType="{x:Type optvm:PrivacySecurityViewModel}">
+                                <optv:PrivacySecurityView />
+                            </DataTemplate>
+                            <DataTemplate DataType="{x:Type optvm:PowerViewModel}">
+                                <optv:PowerView />
+                            </DataTemplate>
+                            <DataTemplate DataType="{x:Type optvm:GamingPerformanceViewModel}">
+                                <optv:GamingPerformanceView />
+                            </DataTemplate>
+                            <DataTemplate DataType="{x:Type optvm:UpdateViewModel}">
+                                <optv:UpdateView />
+                            </DataTemplate>
+                            <DataTemplate DataType="{x:Type optvm:NotificationsViewModel}">
+                                <optv:NotificationsView />
+                            </DataTemplate>
+                            <DataTemplate DataType="{x:Type optvm:SoundViewModel}">
+                                <optv:SoundView />
+                            </DataTemplate>
+                        </ContentControl.Resources>
+                    </ContentControl>
+                </Grid>
             </Grid>
 
             <!-- Customization placeholder -->

@@ -76,3 +76,15 @@ C:\Users\brtvvv\Documents\WinManager\WinManager\obj\Debug\net9.0-windows10.0.190
 C:\Users\brtvvv\Documents\WinManager\WinManager\obj\Debug\net9.0-windows10.0.19041.0\WinManager.csproj.Up2Date
 C:\Users\brtvvv\Documents\WinManager\WinManager\obj\Debug\net9.0-windows10.0.19041.0\WinManager.genruntimeconfig.cache
 C:\Users\brtvvv\Documents\WinManager\WinManager\obj\Debug\net9.0-windows10.0.19041.0\ref\WinManager.dll
+C:\Users\brtvvv\Documents\WinManager\WinManager\obj\Debug\net9.0-windows10.0.19041.0\Views\Optimization\GamingPerformanceView.baml
+C:\Users\brtvvv\Documents\WinManager\WinManager\obj\Debug\net9.0-windows10.0.19041.0\Views\Optimization\NotificationsView.baml
+C:\Users\brtvvv\Documents\WinManager\WinManager\obj\Debug\net9.0-windows10.0.19041.0\Views\Optimization\PowerView.baml
+C:\Users\brtvvv\Documents\WinManager\WinManager\obj\Debug\net9.0-windows10.0.19041.0\Views\Optimization\PrivacySecurityView.baml
+C:\Users\brtvvv\Documents\WinManager\WinManager\obj\Debug\net9.0-windows10.0.19041.0\Views\Optimization\SoundView.baml
+C:\Users\brtvvv\Documents\WinManager\WinManager\obj\Debug\net9.0-windows10.0.19041.0\Views\Optimization\UpdateView.baml
+C:\Users\brtvvv\Documents\WinManager\WinManager\obj\Debug\net9.0-windows10.0.19041.0\Views\Optimization\GamingPerformanceView.g.cs
+C:\Users\brtvvv\Documents\WinManager\WinManager\obj\Debug\net9.0-windows10.0.19041.0\Views\Optimization\NotificationsView.g.cs
+C:\Users\brtvvv\Documents\WinManager\WinManager\obj\Debug\net9.0-windows10.0.19041.0\Views\Optimization\PowerView.g.cs
+C:\Users\brtvvv\Documents\WinManager\WinManager\obj\Debug\net9.0-windows10.0.19041.0\Views\Optimization\PrivacySecurityView.g.cs
+C:\Users\brtvvv\Documents\WinManager\WinManager\obj\Debug\net9.0-windows10.0.19041.0\Views\Optimization\SoundView.g.cs
+C:\Users\brtvvv\Documents\WinManager\WinManager\obj\Debug\net9.0-windows10.0.19041.0\Views\Optimization\UpdateView.g.cs
