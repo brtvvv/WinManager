@@ -88,3 +88,5 @@ C:\Users\brtvvv\Documents\WinManager\WinManager\obj\Debug\net9.0-windows10.0.190
 C:\Users\brtvvv\Documents\WinManager\WinManager\obj\Debug\net9.0-windows10.0.19041.0\Views\Optimization\PrivacySecurityView.g.cs
 C:\Users\brtvvv\Documents\WinManager\WinManager\obj\Debug\net9.0-windows10.0.19041.0\Views\Optimization\SoundView.g.cs
 C:\Users\brtvvv\Documents\WinManager\WinManager\obj\Debug\net9.0-windows10.0.19041.0\Views\Optimization\UpdateView.g.cs
+C:\Users\brtvvv\Documents\WinManager\WinManager\obj\Debug\net9.0-windows10.0.19041.0\Views\MiscView.baml
+C:\Users\brtvvv\Documents\WinManager\WinManager\obj\Debug\net9.0-windows10.0.19041.0\Views\MiscView.g.cs

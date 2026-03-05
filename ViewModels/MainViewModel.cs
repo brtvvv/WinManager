@@ -12,6 +12,7 @@ public class MainViewModel : ObservableObject
     {
         Programs = new ProgramsViewModel();
         Optimization = new OptimizationViewModel();
+        Misc = new MiscViewModel();
         SelectedSection = AppSection.Programs;
         SelectSectionCommand = new RelayCommand<AppSection>(s => SelectedSection = s);
     }
@@ -19,6 +20,8 @@ public class MainViewModel : ObservableObject
     public ProgramsViewModel Programs { get; }
 
     public OptimizationViewModel Optimization { get; }
+
+    public MiscViewModel Misc { get; }
 
     public RelayCommand<AppSection> SelectSectionCommand { get; }
 
@@ -38,5 +41,6 @@ public class MainViewModel : ObservableObject
     public string OptimizationMessage => "Coming soon: system optimization tweaks.";
 
     public string CustomizationMessage => "Coming soon: personalization and UI tweaks.";
+
 }
 

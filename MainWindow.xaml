@@ -7,6 +7,7 @@
         xmlns:model="clr-namespace:WinManager.Models"
         xmlns:optvm="clr-namespace:WinManager.ViewModels.Optimization"
         xmlns:optv="clr-namespace:WinManager.Views.Optimization"
+        xmlns:views="clr-namespace:WinManager.Views"
         mc:Ignorable="d"
         Title="WinManager"
         Height="900"
@@ -106,6 +107,27 @@
                                 <StackPanel Orientation="Vertical" Margin="8,0,0,0">
                                     <TextBlock Text="Customization" FontWeight="SemiBold" />
                                     <TextBlock Text="UI &amp; personalization" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Button>
+                        <Button Command="{Binding SelectSectionCommand}" CommandParameter="{x:Static model:AppSection.Misc}">
+                            <StackPanel Orientation="Horizontal">
+                                <Rectangle Width="6" Height="24" RadiusX="3" RadiusY="3" Fill="{StaticResource SurfaceAltBrush}">
+                                    <Rectangle.Style>
+                                        <Style TargetType="Rectangle">
+                                            <Setter Property="Opacity" Value="0" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedSection}" Value="{x:Static model:AppSection.Misc}">
+                                                    <Setter Property="Opacity" Value="1" />
+                                                    <Setter Property="Fill" Value="{StaticResource BorderBrushMono}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Rectangle.Style>
+                                </Rectangle>
+                                <StackPanel Orientation="Vertical" Margin="8,0,0,0">
+                                    <TextBlock Text="Misc" FontWeight="SemiBold" />
+                                    <TextBlock Text="Miscellaneous tweaks" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
                                 </StackPanel>
                             </StackPanel>
                         </Button>
@@ -542,6 +564,11 @@
                            VerticalAlignment="Center"
                            FontSize="18"
                            Foreground="{StaticResource TextSecondaryBrush}" />
+            </Grid>
+
+            <!-- Misc -->
+            <Grid Visibility="{Binding SelectedSection, Converter={StaticResource SectionToVisibilityConverter}, ConverterParameter=Misc}">
+                <views:MiscView DataContext="{Binding Misc}" />
             </Grid>
         </Grid>
     </Grid>

@@ -5,6 +5,7 @@ public enum AppSection
 {
     Programs = 0,
     Optimization = 1,
-    Customization = 2
+    Customization = 2,
+    Misc = 3
 }
 
