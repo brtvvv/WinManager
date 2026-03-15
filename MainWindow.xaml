@@ -388,6 +388,9 @@
                             </Border>
                         </Grid>
                     </TabItem>
+                    <TabItem Header="Features">
+                        <views:FeaturesView DataContext="{Binding Features}" />
+                    </TabItem>
                 </TabControl>
             </Grid>
 

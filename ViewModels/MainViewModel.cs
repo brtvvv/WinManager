@@ -12,6 +12,7 @@ public class MainViewModel : ObservableObject
     {
         Programs = new ProgramsViewModel();
         Optimization = new OptimizationViewModel();
+        Features = new FeaturesViewModel();
         Misc = new MiscViewModel();
         SelectedSection = AppSection.Programs;
         SelectSectionCommand = new RelayCommand<AppSection>(s => SelectedSection = s);
@@ -20,6 +21,8 @@ public class MainViewModel : ObservableObject
     public ProgramsViewModel Programs { get; }
 
     public OptimizationViewModel Optimization { get; }
+
+    public FeaturesViewModel Features { get; }
 
     public MiscViewModel Misc { get; }
 
