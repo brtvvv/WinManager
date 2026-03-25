@@ -92,3 +92,10 @@ C:\Users\brtvvv\Documents\WinManager\WinManager\obj\Debug\net9.0-windows10.0.190
 C:\Users\brtvvv\Documents\WinManager\WinManager\obj\Debug\net9.0-windows10.0.19041.0\Views\MiscView.g.cs
 C:\Users\brtvvv\Documents\WinManager\WinManager\obj\Debug\net9.0-windows10.0.19041.0\Views\FeaturesView.baml
 C:\Users\brtvvv\Documents\WinManager\WinManager\obj\Debug\net9.0-windows10.0.19041.0\Views\FeaturesView.g.cs
+c:\Users\brtvvv\Documents\WinManager\WinManager\bin\TempBuild\WinManager.exe
+c:\Users\brtvvv\Documents\WinManager\WinManager\bin\TempBuild\WinManager.deps.json
+c:\Users\brtvvv\Documents\WinManager\WinManager\bin\TempBuild\WinManager.runtimeconfig.json
+c:\Users\brtvvv\Documents\WinManager\WinManager\bin\TempBuild\WinManager.dll
+c:\Users\brtvvv\Documents\WinManager\WinManager\bin\TempBuild\WinManager.pdb
+c:\Users\brtvvv\Documents\WinManager\WinManager\bin\TempBuild\Microsoft.Windows.SDK.NET.dll
+c:\Users\brtvvv\Documents\WinManager\WinManager\bin\TempBuild\WinRT.Runtime.dll
