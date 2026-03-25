@@ -28,6 +28,56 @@
                 </Grid>
             </Border>
         </DataTemplate>
+
+        <DataTemplate x:Key="EnableFeatureItemTemplate">
+            <Border Background="{StaticResource SurfaceBrush}"
+                    CornerRadius="8"
+                    Padding="14,9"
+                    Margin="0,3"
+                    BorderBrush="{StaticResource BorderBrushMono}"
+                    BorderThickness="1">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{Binding Name}"
+                               FontWeight="SemiBold"
+                               FontSize="13"
+                               VerticalAlignment="Center"
+                               Foreground="{StaticResource TextPrimaryBrush}" />
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding StatusText}"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"
+                               Margin="0,0,14,0"
+                               MinWidth="75"
+                               TextAlignment="Right">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsEnabled}" Value="True">
+                                        <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsChecking}" Value="True">
+                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <Button Grid.Column="2"
+                            Content="{Binding ButtonLabel}"
+                            Command="{Binding DataContext.ToggleFeatureCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                            CommandParameter="{Binding}"
+                            MinWidth="70"
+                            VerticalAlignment="Center" />
+                </Grid>
+            </Border>
+        </DataTemplate>
     </UserControl.Resources>
 
     <Grid>
@@ -60,7 +110,7 @@
                                Margin="0,18,0,8"
                                Foreground="{StaticResource TextPrimaryBrush}" />
                     <ItemsControl ItemsSource="{Binding EnableItems}"
-                                  ItemTemplate="{StaticResource FeatureItemTemplate}" />
+                                  ItemTemplate="{StaticResource EnableFeatureItemTemplate}" />
 
                     <!-- Run -->
                     <TextBlock Text="Run"
