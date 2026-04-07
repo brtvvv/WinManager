@@ -16,7 +16,7 @@ public class OptimizationViewModel : ObservableObject
             new("privacy", "Privacy & Security", "Manage privacy and security settings"),
             new("power", "Power", "Configure power and battery options"),
             new("gaming", "Gaming & Performance", "Optimize for gaming and performance"),
-            new("update", "Update", "Manage Windows Update settings"),
+            new("update", "Updates", "Manage Windows Update settings"),
             new("notifications", "Notifications", "Configure notification preferences"),
             new("sound", "Sound", "Adjust audio and sound settings"),
         };
