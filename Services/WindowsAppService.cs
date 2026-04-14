@@ -94,12 +94,15 @@ public class WindowsAppService
         }
     }
 
-    /// <summary>Install selected apps via winget if available.</summary>
-    public async Task InstallAsync(IEnumerable<SoftwareItem> apps, Action<string> log, CancellationToken cancellationToken = default)
+    public async Task InstallAsync(IEnumerable<SoftwareItem> apps, Action<string> log,
+        CancellationToken cancellationToken = default, Action<int, int, string>? onProgress = null)
     {
-        foreach (var app in apps)
+        var list = apps.ToList();
+        for (int i = 0; i < list.Count; i++)
         {
+            var app = list[i];
             app.IsBusy = true;
+            onProgress?.Invoke(i, list.Count, app.Name);
             log($"[Install] {app.Name}");
 
             if (!string.IsNullOrWhiteSpace(app.WingetId))
@@ -117,10 +120,11 @@ public class WindowsAppService
 
             app.IsBusy = false;
         }
+        onProgress?.Invoke(list.Count, list.Count, "Done");
     }
 
-    /// <summary>Uninstall selected apps: only Installed; uses Get-AppxPackage -AllUsers &lt;Name&gt; | Remove-AppxPackage -AllUsers.</summary>
-    public async Task UninstallAsync(IEnumerable<SoftwareItem> apps, Action<string> log, CancellationToken cancellationToken = default)
+    public async Task UninstallAsync(IEnumerable<SoftwareItem> apps, Action<string> log,
+        CancellationToken cancellationToken = default, Action<int, int, string>? onProgress = null)
     {
         var toUninstall = apps.Where(a => a.Status == AppStatus.Installed && a.InstalledPackageNames.Count > 0).ToList();
         var total = toUninstall.Count;
@@ -129,6 +133,7 @@ public class WindowsAppService
         foreach (var app in toUninstall)
         {
             app.IsBusy = true;
+            onProgress?.Invoke(index, total, app.Name);
             index++;
             var currentOp = $"Uninstalling {index}/{total}: {app.Name}";
             log($"[Uninstall] {currentOp}");
@@ -160,6 +165,8 @@ public class WindowsAppService
 
             app.IsBusy = false;
         }
+
+        onProgress?.Invoke(total, total, "Done");
 
         if (toUninstall.Count == 0)
         {

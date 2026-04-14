@@ -3,15 +3,22 @@ bin/
 obj/
 
 # Logs
-error.log
 *.log
+error.log
 
-# User-specific
+# User-specific files
 *.user
 *.suo
 *.rsuser
+*.cs~
 
-# Rider / VS cache
+# IDE folders
 .idea/
 .vs/
 
+# Internal tooling
+.claude/
+
+# Windows
+Thumbs.db
+Desktop.ini

@@ -23,6 +23,9 @@ public class ProgramsViewModel : ObservableObject
     private string _log = string.Empty;
     private string _status = "Ready";
     private bool _isBusy;
+    private CancellationTokenSource? _cts;
+    private double _progressValue;
+    private string _progressText = string.Empty;
 
     public ProgramsViewModel()
         : this(new WindowsAppService(), new ExternalAppService())
@@ -40,6 +43,10 @@ public class ProgramsViewModel : ObservableObject
         ExternalAppsView = CollectionViewSource.GetDefaultView(ExternalApps);
         ExternalAppsView.Filter = FilterExternal;
 
+        if (ExternalAppsView is System.Windows.Data.ListCollectionView lcv)
+            lcv.GroupDescriptions.Add(
+                new System.Windows.Data.PropertyGroupDescription(nameof(SoftwareItem.Category)));
+
         LoadCommand = new AsyncRelayCommand(InitializeAsync, () => !IsBusy);
         _refreshCommand = new AsyncRelayCommand(RefreshAsync, () => !IsBusy);
         _installWindowsCommand = new AsyncRelayCommand(InstallSelectedWindowsAsync, CanRunWindowsAction);
@@ -52,6 +59,7 @@ public class ProgramsViewModel : ObservableObject
         ClearSelectionCommand = new RelayCommand(() => ClearSelection());
         SelectAllExternalCommand = new RelayCommand(() => SelectAllExternal());
         ClearExternalCommand = new RelayCommand(() => ClearExternalSelection());
+        CancelCommand = new RelayCommand(CancelOperation, () => IsBusy);
     }
 
     public ObservableCollection<SoftwareItem> WindowsApps { get; } = new();
@@ -72,6 +80,7 @@ public class ProgramsViewModel : ObservableObject
     public RelayCommand ClearSelectionCommand { get; }
     public RelayCommand SelectAllExternalCommand { get; }
     public RelayCommand ClearExternalCommand { get; }
+    public RelayCommand CancelCommand { get; }
 
     public string SearchQuery
     {
@@ -108,6 +117,18 @@ public class ProgramsViewModel : ObservableObject
                 RaiseCommandState();
             }
         }
+    }
+
+    public double ProgressValue
+    {
+        get => _progressValue;
+        private set => SetProperty(ref _progressValue, value);
+    }
+
+    public string ProgressText
+    {
+        get => _progressText;
+        private set => SetProperty(ref _progressText, value);
     }
 
     public bool IsAdministrator => _windowsService.IsAdministrator;
@@ -176,101 +197,140 @@ public class ProgramsViewModel : ObservableObject
         ExternalAppsView.Refresh();
     }
 
-    /// <summary>Install selected Windows apps via WindowsAppService.</summary>
     private async Task InstallSelectedWindowsAsync()
     {
         var selected = WindowsApps.Where(x => x.IsSelected).ToList();
-        if (!selected.Any())
-        {
-            return;
-        }
+        if (!selected.Any()) return;
 
+        _cts = new CancellationTokenSource();
         try
         {
             IsBusy = true;
             Status = $"Installing ({selected.Count})";
-            await _windowsService.InstallAsync(selected, AppendLog, CancellationToken.None);
-            await _windowsService.RefreshStatusAsync(selected, CancellationToken.None);
+            await _windowsService.InstallAsync(selected, AppendLog, _cts.Token, OnProgress);
+            await _windowsService.RefreshStatusAsync(selected, _cts.Token);
+            Status = "Ready";
+        }
+        catch (OperationCanceledException)
+        {
+            AppendLog("Installation cancelled.");
+            Status = "Cancelled";
         }
         finally
         {
+            ResetProgress();
+            _cts?.Dispose();
+            _cts = null;
             IsBusy = false;
             RaiseCommandState();
         }
     }
 
-    /// <summary>Uninstall selected Windows apps via WindowsAppService; then auto-refresh installed list and remap statuses.</summary>
     private async Task UninstallSelectedWindowsAsync()
     {
         var selected = WindowsApps.Where(x => x.IsSelected).ToList();
-        if (!selected.Any())
-        {
-            return;
-        }
+        if (!selected.Any()) return;
 
+        _cts = new CancellationTokenSource();
         try
         {
             IsBusy = true;
             if (!_windowsService.IsAdministrator)
-            {
                 AppendLog("Warning: not running as Administrator; uninstall may fail for some apps.");
-            }
             Status = $"Uninstalling ({selected.Count})...";
-            await _windowsService.UninstallAsync(selected, AppendLog, CancellationToken.None);
+            await _windowsService.UninstallAsync(selected, AppendLog, _cts.Token, OnProgress);
             Status = "Refreshing statuses...";
-            await _windowsService.RefreshStatusAsync(WindowsApps, CancellationToken.None);
+            await _windowsService.RefreshStatusAsync(WindowsApps, _cts.Token);
             WindowsAppsView.Refresh();
             Status = "Ready";
         }
+        catch (OperationCanceledException)
+        {
+            AppendLog("Uninstallation cancelled.");
+            Status = "Cancelled";
+        }
         finally
         {
+            ResetProgress();
+            _cts?.Dispose();
+            _cts = null;
             IsBusy = false;
             RaiseCommandState();
         }
     }
 
-    /// <summary>Install selected external apps via ExternalAppService.</summary>
     private async Task InstallSelectedExternalAsync()
     {
         var selected = ExternalApps.Where(x => x.IsSelected).ToList();
-        if (!selected.Any())
-        {
-            return;
-        }
+        if (!selected.Any()) return;
 
+        _cts = new CancellationTokenSource();
         try
         {
             IsBusy = true;
             Status = $"Installing external ({selected.Count})";
-            await _externalService.InstallAsync(selected, AppendLog, CancellationToken.None);
+            await _externalService.InstallAsync(selected, AppendLog, _cts.Token, OnProgress);
+            Status = "Ready";
+        }
+        catch (OperationCanceledException)
+        {
+            AppendLog("Installation cancelled.");
+            Status = "Cancelled";
         }
         finally
         {
+            ResetProgress();
+            _cts?.Dispose();
+            _cts = null;
             IsBusy = false;
             RaiseCommandState();
         }
     }
 
-    /// <summary>Uninstall selected external apps via ExternalAppService.</summary>
     private async Task UninstallSelectedExternalAsync()
     {
         var selected = ExternalApps.Where(x => x.IsSelected).ToList();
-        if (!selected.Any())
-        {
-            return;
-        }
+        if (!selected.Any()) return;
 
+        _cts = new CancellationTokenSource();
         try
         {
             IsBusy = true;
             Status = $"Uninstalling external ({selected.Count})";
-            await _externalService.UninstallAsync(selected, AppendLog, CancellationToken.None);
+            await _externalService.UninstallAsync(selected, AppendLog, _cts.Token, OnProgress);
+            Status = "Ready";
+        }
+        catch (OperationCanceledException)
+        {
+            AppendLog("Uninstallation cancelled.");
+            Status = "Cancelled";
         }
         finally
         {
+            ResetProgress();
+            _cts?.Dispose();
+            _cts = null;
             IsBusy = false;
             RaiseCommandState();
         }
+    }
+
+    private void CancelOperation()
+    {
+        _cts?.Cancel();
+        Status = "Cancelling...";
+    }
+
+    private void OnProgress(int current, int total, string name)
+    {
+        ProgressValue = total > 0 ? (double)current / total * 100 : 0;
+        ProgressText = total > 0 ? $"{current + 1}/{total} — {name}" : name;
+    }
+
+    private void ResetProgress()
+    {
+        ProgressValue = 0;
+        ProgressText = string.Empty;
     }
 
     /// <summary>Prepend single-line log text to in-memory log (used for debug/diagnostics).</summary>
@@ -314,7 +374,8 @@ public class ProgramsViewModel : ObservableObject
         }
 
         return app.Name.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
-            || app.Description.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase);
+            || app.Description.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
+            || app.Category.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase);
     }
 
     private void SelectAllWindows()
@@ -384,6 +445,7 @@ public class ProgramsViewModel : ObservableObject
         _uninstallExternalCommand.RaiseCanExecuteChanged();
         _refreshCommand.RaiseCanExecuteChanged();
         LoadCommand.RaiseCanExecuteChanged();
+        CancelCommand.RaiseCanExecuteChanged();
     }
 }
 

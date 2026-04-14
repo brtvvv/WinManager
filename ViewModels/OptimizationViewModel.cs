@@ -11,24 +11,36 @@ public class OptimizationViewModel : ObservableObject
 
     public OptimizationViewModel()
     {
+        PrivacyVm       = new PrivacySecurityViewModel();
+        PowerVm         = new PowerViewModel();
+        GamingVm        = new GamingPerformanceViewModel();
+        UpdateVm        = new UpdateViewModel();
+        NotificationsVm = new NotificationsViewModel();
+        SoundVm         = new SoundViewModel();
+
         Categories = new List<OptimizationCategoryItem>
         {
-            new("privacy", "Privacy & Security", "Manage privacy and security settings"),
-            new("power", "Power", "Configure power and battery options"),
-            new("gaming", "Gaming & Performance", "Optimize for gaming and performance"),
-            new("update", "Updates", "Manage Windows Update settings"),
-            new("notifications", "Notifications", "Configure notification preferences"),
-            new("sound", "Sound", "Adjust audio and sound settings"),
+            new("privacy",       "Privacy & Security",    "Manage privacy and security settings"),
+            new("power",         "Power",                 "Configure power and battery options"),
+            new("gaming",        "Gaming & Performance",  "Optimize for gaming and performance"),
+            new("update",        "Updates",               "Manage Windows Update settings"),
+            new("notifications", "Notifications",         "Configure notification preferences"),
+            new("sound",         "Sound",                 "Adjust audio and sound settings"),
         };
 
         SelectCategoryCommand = new RelayCommand<string>(OnSelectCategory);
         GoBackCommand = new RelayCommand(OnGoBack);
     }
 
+    public PrivacySecurityViewModel   PrivacyVm       { get; }
+    public PowerViewModel             PowerVm         { get; }
+    public GamingPerformanceViewModel GamingVm        { get; }
+    public UpdateViewModel            UpdateVm        { get; }
+    public NotificationsViewModel     NotificationsVm { get; }
+    public SoundViewModel             SoundVm         { get; }
+
     public IReadOnlyList<OptimizationCategoryItem> Categories { get; }
-
     public RelayCommand<string> SelectCategoryCommand { get; }
-
     public RelayCommand GoBackCommand { get; }
 
     public bool ShowCategories
@@ -47,13 +59,13 @@ public class OptimizationViewModel : ObservableObject
     {
         CurrentCategoryView = key switch
         {
-            "privacy" => new PrivacySecurityViewModel(),
-            "power" => new PowerViewModel(),
-            "gaming" => new GamingPerformanceViewModel(),
-            "update" => new UpdateViewModel(),
-            "notifications" => new NotificationsViewModel(),
-            "sound" => new SoundViewModel(),
-            _ => null
+            "privacy"       => PrivacyVm,
+            "power"         => PowerVm,
+            "gaming"        => GamingVm,
+            "update"        => UpdateVm,
+            "notifications" => NotificationsVm,
+            "sound"         => SoundVm,
+            _               => null
         };
         ShowCategories = CurrentCategoryView is null;
     }

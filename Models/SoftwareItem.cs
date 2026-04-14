@@ -17,13 +17,17 @@ public class SoftwareItem : ObservableObject
         string name,
         string? wingetId = null,
         IEnumerable<string>? detectionKeywords = null,
-        string? description = null)
+        string? description = null,
+        string? category = null,
+        string? iconUrl = null)
     {
         Id = id;
         Name = name;
         WingetId = wingetId;
         DetectionKeywords = detectionKeywords?.ToList() ?? new List<string>();
         Description = description ?? string.Empty;
+        Category = category ?? string.Empty;
+        IconUrl = iconUrl;
     }
 
     public string Id { get; }
@@ -31,6 +35,10 @@ public class SoftwareItem : ObservableObject
     public string Name { get; }
 
     public string Description { get; }
+
+    public string Category { get; }
+
+    public string? IconUrl { get; }
 
     public string? WingetId { get; }
 

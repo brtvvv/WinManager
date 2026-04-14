@@ -1,0 +1,285 @@
+<UserControl x:Class="WinManager.Views.Customization.TaskbarView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Background="{StaticResource SurfaceAltBrush}"
+                CornerRadius="14"
+                Padding="20"
+                BorderBrush="{StaticResource BorderBrushMono}"
+                BorderThickness="1">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+
+                    <!-- ═══ Taskbar Items ═══ -->
+                    <TextBlock Text="Taskbar Items"
+                               FontSize="15"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,8"
+                               Foreground="{StaticResource TextPrimaryBrush}" />
+
+                    <!-- Clean Taskbar (action) -->
+                    <Border Background="{StaticResource SurfaceBrush}"
+                            CornerRadius="8"
+                            Padding="14,9"
+                            Margin="0,3"
+                            BorderBrush="{StaticResource BorderBrushMono}"
+                            BorderThickness="1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Clean Taskbar"
+                                           FontWeight="SemiBold"
+                                           FontSize="13"
+                                           Foreground="{StaticResource TextPrimaryBrush}" />
+                                <TextBlock Text="Removes all pinned apps from the taskbar for a minimal look"
+                                           FontSize="11"
+                                           Margin="0,2,0,0"
+                                           Foreground="{StaticResource TextSecondaryBrush}" />
+                            </StackPanel>
+                            <Button Grid.Column="1"
+                                    Content="Clean Taskbar"
+                                    Command="{Binding CleanTaskbarCommand}"
+                                    MinWidth="110"
+                                    VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+
+                    <!-- Search in Taskbar (dropdown) -->
+                    <Border Background="{StaticResource SurfaceBrush}"
+                            CornerRadius="8"
+                            Padding="14,9"
+                            Margin="0,3"
+                            BorderBrush="{StaticResource BorderBrushMono}"
+                            BorderThickness="1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Search in Taskbar"
+                                           FontWeight="SemiBold"
+                                           FontSize="13"
+                                           Foreground="{StaticResource TextPrimaryBrush}" />
+                                <TextBlock Text="Controls the visibility of the search box or icon in the taskbar"
+                                           FontSize="11"
+                                           Margin="0,2,0,0"
+                                           Foreground="{StaticResource TextSecondaryBrush}" />
+                            </StackPanel>
+                            <ComboBox Grid.Column="1"
+                                      ItemsSource="{Binding SearchOptions}"
+                                      SelectedItem="{Binding SelectedSearchOption, Mode=TwoWay}"
+                                      DisplayMemberPath="Label"
+                                      MinWidth="140"
+                                      VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+
+                    <!-- Item toggles: Task View, Copilot, Widgets -->
+                    <ItemsControl ItemsSource="{Binding ItemToggles}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{StaticResource SurfaceBrush}"
+                                        CornerRadius="8"
+                                        Padding="14,9"
+                                        Margin="0,3"
+                                        BorderBrush="{StaticResource BorderBrushMono}"
+                                        BorderThickness="1">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}"
+                                                       FontWeight="SemiBold"
+                                                       FontSize="13"
+                                                       Foreground="{StaticResource TextPrimaryBrush}" />
+                                            <TextBlock Text="{Binding Description}"
+                                                       FontSize="11"
+                                                       Margin="0,2,0,0"
+                                                       Foreground="{StaticResource TextSecondaryBrush}" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding StatusText}"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,14,0"
+                                                   MinWidth="75"
+                                                   TextAlignment="Right">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsEnabled}" Value="True">
+                                                            <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsChecking}" Value="True">
+                                                            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <Button Grid.Column="2"
+                                                Content="{Binding ButtonLabel}"
+                                                Command="{Binding DataContext.ToggleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
+                                                MinWidth="70"
+                                                VerticalAlignment="Center" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- ═══ Taskbar Behavior ═══ -->
+                    <TextBlock Text="Taskbar Behavior"
+                               FontSize="15"
+                               FontWeight="SemiBold"
+                               Margin="0,16,0,8"
+                               Foreground="{StaticResource TextPrimaryBrush}" />
+
+                    <!-- Alignment (dropdown) -->
+                    <Border Background="{StaticResource SurfaceBrush}"
+                            CornerRadius="8"
+                            Padding="14,9"
+                            Margin="0,3"
+                            BorderBrush="{StaticResource BorderBrushMono}"
+                            BorderThickness="1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Taskbar Alignment"
+                                           FontWeight="SemiBold"
+                                           FontSize="13"
+                                           Foreground="{StaticResource TextPrimaryBrush}" />
+                                <TextBlock Text="Set the alignment of taskbar icons"
+                                           FontSize="11"
+                                           Margin="0,2,0,0"
+                                           Foreground="{StaticResource TextSecondaryBrush}" />
+                            </StackPanel>
+                            <ComboBox Grid.Column="1"
+                                      ItemsSource="{Binding AlignmentOptions}"
+                                      SelectedItem="{Binding SelectedAlignmentOption, Mode=TwoWay}"
+                                      DisplayMemberPath="Label"
+                                      MinWidth="140"
+                                      VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+
+                    <!-- Behavior toggles: End Task -->
+                    <ItemsControl ItemsSource="{Binding BehaviorToggles}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{StaticResource SurfaceBrush}"
+                                        CornerRadius="8"
+                                        Padding="14,9"
+                                        Margin="0,3"
+                                        BorderBrush="{StaticResource BorderBrushMono}"
+                                        BorderThickness="1">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}"
+                                                       FontWeight="SemiBold"
+                                                       FontSize="13"
+                                                       Foreground="{StaticResource TextPrimaryBrush}" />
+                                            <TextBlock Text="{Binding Description}"
+                                                       FontSize="11"
+                                                       Margin="0,2,0,0"
+                                                       Foreground="{StaticResource TextSecondaryBrush}" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding StatusText}"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,14,0"
+                                                   MinWidth="75"
+                                                   TextAlignment="Right">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsEnabled}" Value="True">
+                                                            <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsChecking}" Value="True">
+                                                            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <Button Grid.Column="2"
+                                                Content="{Binding ButtonLabel}"
+                                                Command="{Binding DataContext.ToggleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
+                                                MinWidth="70"
+                                                VerticalAlignment="Center" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <!-- Status toast -->
+        <Border Grid.Row="1"
+                CornerRadius="10"
+                Padding="14,10"
+                Margin="0,10,0,0"
+                BorderBrush="{StaticResource BorderBrushMono}"
+                BorderThickness="1"
+                Background="{StaticResource SurfaceBrush}">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding ShowStatus}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding StatusMessage}"
+                           VerticalAlignment="Center"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           TextWrapping="Wrap" />
+                <Button Grid.Column="1"
+                        Content="✕"
+                        Command="{Binding DismissStatusCommand}"
+                        VerticalAlignment="Center"
+                        Padding="6,2"
+                        Margin="8,0,0,0"
+                        FontSize="12" />
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

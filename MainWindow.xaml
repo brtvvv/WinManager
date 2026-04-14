@@ -8,6 +8,8 @@
         xmlns:optvm="clr-namespace:WinManager.ViewModels.Optimization"
         xmlns:optv="clr-namespace:WinManager.Views.Optimization"
         xmlns:views="clr-namespace:WinManager.Views"
+        xmlns:custvm="clr-namespace:WinManager.ViewModels.Customization"
+        xmlns:custv="clr-namespace:WinManager.Views.Customization"
         mc:Ignorable="d"
         Title="WinManager"
         Height="900"
@@ -17,16 +19,29 @@
     <Window.DataContext>
         <vm:MainViewModel />
     </Window.DataContext>
-    <!-- Root grid: left sidebar + top bar + content -->
+    <!-- Root grid -->
     <Grid Background="{StaticResource PrimaryDarkBrush}">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="220" />
-            <ColumnDefinition Width="*" />
-        </Grid.ColumnDefinitions>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
+
+        <!-- Main app (hidden when ShowWelcome=true) -->
+        <Grid>
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding ShowWelcome}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="220" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
         <!-- Left sidebar navigation: primary sections -->
         <Border Grid.RowSpan="2"
@@ -133,6 +148,30 @@
                         </Button>
                     </ItemsControl.Items>
                 </ItemsControl>
+
+                <Separator Margin="14,8" Background="{StaticResource BorderBrushMono}" />
+
+                <Button Command="{Binding SaveConfigCommand}"
+                        Style="{StaticResource SidebarButtonStyle}"
+                        HorizontalContentAlignment="Stretch">
+                    <StackPanel Orientation="Horizontal">
+                        <Rectangle Width="6" Height="24" RadiusX="3" RadiusY="3" Opacity="0" />
+                        <StackPanel Orientation="Vertical" Margin="8,0,0,0">
+                            <TextBlock Text="Save Config" FontWeight="SemiBold" />
+                            <TextBlock Text="Export current settings"
+                                       FontSize="11"
+                                       Foreground="{StaticResource TextSecondaryBrush}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Button>
+
+                <TextBlock Text="{Binding ConfigStatus}"
+                           Margin="14,4,14,12"
+                           FontSize="11"
+                           TextWrapping="Wrap"
+                           Foreground="{StaticResource AccentBrush}"
+                           Visibility="{Binding ConfigStatus,
+                               Converter={StaticResource StringToVisibilityConverter}}" />
             </StackPanel>
         </Border>
 
@@ -207,6 +246,44 @@
                         <TextBlock Text="Select apps (all / installed / not installed) then Install or Uninstall."
                                    Margin="0,6,0,0"
                                    Foreground="{StaticResource TextSecondaryBrush}" />
+
+                        <Grid Margin="0,10,0,0">
+                            <Grid.Style>
+                                <Style TargetType="Grid">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Programs.IsBusy}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Grid.Style>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding Programs.ProgressText}"
+                                           FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}" />
+                                <TextBlock Grid.Column="1"
+                                           FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           Text="{Binding Programs.ProgressValue, StringFormat={}{0:0}%}" />
+                            </Grid>
+                            <ProgressBar Grid.Row="1"
+                                         Height="6"
+                                         Minimum="0"
+                                         Maximum="100"
+                                         Value="{Binding Programs.ProgressValue, Mode=OneWay}"
+                                         Background="{StaticResource SurfaceAltBrush}"
+                                         Foreground="{StaticResource AccentBrush}"
+                                         BorderThickness="0" />
+                        </Grid>
                     </StackPanel>
                 </Border>
 
@@ -248,6 +325,9 @@
                                                 Command="{Binding Programs.InstallWindowsCommand}" />
                                         <Button Content="Uninstall selected"
                                                 Command="{Binding Programs.UninstallWindowsCommand}" />
+                                        <Button Content="Cancel"
+                                                Command="{Binding Programs.CancelCommand}"
+                                                Foreground="#FF6B6B" />
                                     </StackPanel>
                                 </Grid>
                             </Border>
@@ -339,6 +419,9 @@
                                             Command="{Binding Programs.InstallExternalCommand}" />
                                     <Button Content="Uninstall selected"
                                             Command="{Binding Programs.UninstallExternalCommand}" />
+                                    <Button Content="Cancel"
+                                            Command="{Binding Programs.CancelCommand}"
+                                            Foreground="#FF6B6B" />
                                 </StackPanel>
                             </Border>
                             <Border Grid.Row="1"
@@ -352,6 +435,29 @@
                                           Foreground="{StaticResource TextPrimaryBrush}"
                                           Background="{StaticResource SurfaceAltBrush}"
                                           BorderThickness="0">
+                                    <ListView.GroupStyle>
+                                        <GroupStyle>
+                                            <GroupStyle.HeaderTemplate>
+                                                <DataTemplate>
+                                                    <Border Background="#1E1E1E"
+                                                            BorderBrush="{StaticResource BorderBrushMono}"
+                                                            BorderThickness="0,0,0,1"
+                                                            Padding="8,6">
+                                                        <TextBlock Foreground="{StaticResource AccentBrush}"
+                                                                   FontWeight="SemiBold"
+                                                                   FontSize="12">
+                                                            <TextBlock.Text>
+                                                                <MultiBinding StringFormat="{}{0}  ({1})">
+                                                                    <Binding Path="Name" />
+                                                                    <Binding Path="ItemCount" />
+                                                                </MultiBinding>
+                                                            </TextBlock.Text>
+                                                        </TextBlock>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </GroupStyle.HeaderTemplate>
+                                        </GroupStyle>
+                                    </ListView.GroupStyle>
                                     <ListView.View>
                                         <GridView>
                                             <GridViewColumn Width="40">
@@ -361,24 +467,37 @@
                                                     </DataTemplate>
                                                 </GridViewColumn.CellTemplate>
                                             </GridViewColumn>
-                                            <GridViewColumn Header="Name" Width="220">
+                                            <GridViewColumn Header="Application" Width="260">
                                                 <GridViewColumn.CellTemplate>
                                                     <DataTemplate>
-                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                                        <StackPanel Orientation="Horizontal"
+                                                                    VerticalAlignment="Center">
+                                                            <Image Source="{Binding IconUrl, Converter={StaticResource StringToImageSourceConverter}}"
+                                                                   Width="20" Height="20"
+                                                                   Margin="0,0,8,0"
+                                                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                                                   VerticalAlignment="Center" />
+                                                            <TextBlock Text="{Binding Name}"
+                                                                       FontWeight="SemiBold"
+                                                                       VerticalAlignment="Center" />
+                                                        </StackPanel>
                                                     </DataTemplate>
                                                 </GridViewColumn.CellTemplate>
                                             </GridViewColumn>
-                                            <GridViewColumn Header="Description" Width="400">
+                                            <GridViewColumn Header="Description" Width="380">
                                                 <GridViewColumn.CellTemplate>
                                                     <DataTemplate>
-                                                        <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                        <TextBlock Text="{Binding Description}"
+                                                                   TextWrapping="Wrap"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}" />
                                                     </DataTemplate>
                                                 </GridViewColumn.CellTemplate>
                                             </GridViewColumn>
                                             <GridViewColumn Header="Package" Width="240">
                                                 <GridViewColumn.CellTemplate>
                                                     <DataTemplate>
-                                                        <TextBlock Text="{Binding WingetId}" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                        <TextBlock Text="{Binding WingetId}"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}" />
                                                     </DataTemplate>
                                                 </GridViewColumn.CellTemplate>
                                             </GridViewColumn>
@@ -560,13 +679,161 @@
                 </Grid>
             </Grid>
 
-            <!-- Customization placeholder -->
+            <!-- Customization content -->
             <Grid Visibility="{Binding SelectedSection, Converter={StaticResource SectionToVisibilityConverter}, ConverterParameter=Customization}">
-                <TextBlock Text="{Binding CustomizationMessage}"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           FontSize="18"
-                           Foreground="{StaticResource TextSecondaryBrush}" />
+
+                <!-- Category list -->
+                <Grid>
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Customization.ShowCategories}" Value="False">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Border Background="{StaticResource SurfaceBrush}"
+                            CornerRadius="14"
+                            Padding="14"
+                            BorderBrush="{StaticResource BorderBrushMono}"
+                            BorderThickness="1">
+                        <StackPanel>
+                            <TextBlock Text="Customization"
+                                       FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}" />
+                            <TextBlock Text="Personalize the look and feel of your system."
+                                       Margin="0,6,0,0"
+                                       Foreground="{StaticResource TextSecondaryBrush}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Row="1"
+                            Margin="0,14,0,0"
+                            Background="{StaticResource SurfaceAltBrush}"
+                            Padding="10"
+                            CornerRadius="14"
+                            BorderBrush="{StaticResource BorderBrushMono}"
+                            BorderThickness="1">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding Customization.Categories}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Command="{Binding DataContext.Customization.SelectCategoryCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding Key}"
+                                                Margin="4,4"
+                                                FocusVisualStyle="{x:Null}">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border x:Name="cardBorder"
+                                                            Background="{StaticResource SurfaceBrush}"
+                                                            CornerRadius="12"
+                                                            Padding="16,14"
+                                                            BorderBrush="{StaticResource BorderBrushMono}"
+                                                            BorderThickness="1"
+                                                            Cursor="Hand">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <StackPanel VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding Name}"
+                                                                           FontWeight="SemiBold"
+                                                                           FontSize="14"
+                                                                           Foreground="{StaticResource TextPrimaryBrush}" />
+                                                                <TextBlock Text="{Binding Description}"
+                                                                           Margin="0,4,0,0"
+                                                                           Foreground="{StaticResource TextSecondaryBrush}" />
+                                                            </StackPanel>
+                                                            <TextBlock Grid.Column="1"
+                                                                       Text="›"
+                                                                       FontSize="22"
+                                                                       VerticalAlignment="Center"
+                                                                       Foreground="{StaticResource MutedBrush}"
+                                                                       Margin="12,0,4,0" />
+                                                        </Grid>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="cardBorder" Property="Background"
+                                                                    Value="{StaticResource SurfaceAltBrush}" />
+                                                        </Trigger>
+                                                        <Trigger Property="IsPressed" Value="True">
+                                                            <Setter TargetName="cardBorder" Property="Background"
+                                                                    Value="{StaticResource PrimaryLightBrush}" />
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Border>
+                </Grid>
+
+                <!-- Category detail view -->
+                <Grid>
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Customization.ShowCategories}" Value="False">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Border Background="{StaticResource SurfaceBrush}"
+                            CornerRadius="14"
+                            Padding="14"
+                            BorderBrush="{StaticResource BorderBrushMono}"
+                            BorderThickness="1">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button Content="← Back"
+                                    Command="{Binding Customization.GoBackCommand}"
+                                    VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Customization.CurrentCategoryView.Title}"
+                                       FontSize="18"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"
+                                       Margin="12,0,0,0"
+                                       Foreground="{StaticResource TextPrimaryBrush}" />
+                        </StackPanel>
+                    </Border>
+
+                    <ContentControl Grid.Row="1"
+                                    Margin="0,14,0,0"
+                                    Content="{Binding Customization.CurrentCategoryView}"
+                                    HorizontalContentAlignment="Stretch"
+                                    VerticalContentAlignment="Stretch">
+                        <ContentControl.Resources>
+                            <DataTemplate DataType="{x:Type custvm:WindowsThemeViewModel}">
+                                <custv:WindowsThemeView />
+                            </DataTemplate>
+                            <DataTemplate DataType="{x:Type custvm:TaskbarViewModel}">
+                                <custv:TaskbarView />
+                            </DataTemplate>
+                            <DataTemplate DataType="{x:Type custvm:StartMenuViewModel}">
+                                <custv:StartMenuView />
+                            </DataTemplate>
+                        </ContentControl.Resources>
+                    </ContentControl>
+                </Grid>
             </Grid>
 
             <!-- Misc -->
@@ -574,6 +841,24 @@
                 <views:MiscView DataContext="{Binding Misc}" />
             </Grid>
         </Grid>
+
+        </Grid>
+        <!-- End of main app Grid -->
+
+        <!-- Welcome screen overlay -->
+        <views:WelcomeView>
+            <views:WelcomeView.Style>
+                <Style TargetType="UserControl">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding ShowWelcome}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </views:WelcomeView.Style>
+        </views:WelcomeView>
+
     </Grid>
 </Window>
 
