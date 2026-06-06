@@ -79,7 +79,11 @@ public class WindowsThemeViewModel : CustomizationCategoryViewModelBase
         if (success)
         {
             if (item == _darkMode)
+            {
                 await BroadcastThemeChangeAsync();
+                await _runner.RunAsync("powershell.exe",
+                    "-NoProfile -ExecutionPolicy Bypass -Command \"Stop-Process -Name explorer -Force; Start-Process explorer\"");
+            }
 
             await _service.ReadStateAsync(item);
             item.IsChecking = false;

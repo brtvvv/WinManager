@@ -94,7 +94,8 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
             if (_suppressSearchChange || value is null || previous is null) return;
             _ = ApplyDropdownAsync(
                 @"HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search",
-                "SearchboxTaskbarMode", value.Value, "Search in Taskbar");
+                "SearchboxTaskbarMode", value.Value, "Search in Taskbar",
+                restartExplorer: true);
         }
     }
 
@@ -167,7 +168,8 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
         _suppressAlignmentChange = false;
     }
 
-    private async Task ApplyDropdownAsync(string hkPath, string name, int value, string label)
+    private async Task ApplyDropdownAsync(string hkPath, string name, int value, string label,
+        bool restartExplorer = false)
     {
         StatusMessage = $"Applying: {label}...";
         ShowStatus = true;
@@ -175,6 +177,9 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
         var success = await RunPsSuccessAsync(
             $"New-Item -Path '{hkPath}' -Force -EA SilentlyContinue | Out-Null; " +
             $"Set-ItemProperty -Path '{hkPath}' -Name '{name}' -Value {value} -Type DWord -Force");
+
+        if (success && restartExplorer)
+            await RunPsSuccessAsync("Stop-Process -Name explorer -Force; Start-Process explorer");
 
         StatusMessage = success
             ? $"{label} updated successfully."
