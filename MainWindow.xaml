@@ -190,7 +190,7 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel Orientation="Vertical" Margin="0,0,12,0">
-                    <TextBlock Text="Windows Programs &amp; Features"
+                    <TextBlock Text="WinManager - your windows companion"
                                FontSize="24"
                                FontWeight="SemiBold"
                                Foreground="{StaticResource TextPrimaryBrush}" />

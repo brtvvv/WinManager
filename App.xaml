@@ -122,6 +122,16 @@
                                         </Storyboard>
                                     </BeginStoryboard>
                                 </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <ColorAnimation Storyboard.TargetName="BdBg"
+                                                            Storyboard.TargetProperty="Color"
+                                                            To="Transparent"
+                                                            Duration="0:0:0.15" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="Bd" Property="Opacity" Value="0.4" />
