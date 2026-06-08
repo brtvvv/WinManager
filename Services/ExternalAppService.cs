@@ -142,9 +142,12 @@ public class ExternalAppService
 
             log($"[Uninstall] {app.Name}");
             var result = await _runner.RunAsync("winget",
-                $"uninstall --id \"{app.WingetId}\" --exact --silent --accept-source-agreements --accept-package-agreements",
+                $"uninstall --id \"{app.WingetId}\" --exact --silent --accept-source-agreements",
                 cancellationToken);
-            log(result.Output);
+            if (result.Success)
+                log(result.Output);
+            else
+                log($"[Uninstall FAILED] {app.Name}: {result.Output.Trim()}");
         }
         onProgress?.Invoke(list.Count, list.Count, "Done");
     }

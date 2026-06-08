@@ -154,6 +154,12 @@ public class FeaturesViewModel : ObservableObject
         if (item is null || IsBusy)
             return;
 
+        if (item.Name == "All .NET Framework")
+        {
+            await InstallAllDotNetAsync();
+            return;
+        }
+
         IsBusy = true;
         StatusMessage = $"Running: {item.Name}...";
         ShowStatus = true;
@@ -170,6 +176,58 @@ public class FeaturesViewModel : ObservableObject
         catch (Exception ex)
         {
             StatusMessage = $"{item.Name} — error: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private async Task InstallAllDotNetAsync()
+    {
+        IsBusy = true;
+        ShowStatus = true;
+        bool allSucceeded = true;
+
+        try
+        {
+            StatusMessage = "Installing .NET Framework 3.5...";
+            var r1 = await _runner.RunAsync("dism.exe",
+                "/online /enable-feature /featurename:NetFx3 /all /norestart /LimitAccess",
+                timeout: TimeSpan.FromMinutes(10));
+            if (!r1.Success) allSucceeded = false;
+
+            StatusMessage = "Installing .NET 6 Runtime...";
+            var r2 = await _runner.RunAsync("winget",
+                "install --id Microsoft.DotNet.DesktopRuntime.6 --exact --silent --accept-source-agreements --accept-package-agreements",
+                timeout: TimeSpan.FromMinutes(5));
+            if (!r2.Success) allSucceeded = false;
+
+            StatusMessage = "Installing .NET 7 Runtime...";
+            var r3 = await _runner.RunAsync("winget",
+                "install --id Microsoft.DotNet.DesktopRuntime.7 --exact --silent --accept-source-agreements --accept-package-agreements",
+                timeout: TimeSpan.FromMinutes(5));
+            if (!r3.Success) allSucceeded = false;
+
+            StatusMessage = "Installing .NET 8 Runtime...";
+            var r4 = await _runner.RunAsync("winget",
+                "install --id Microsoft.DotNet.DesktopRuntime.8 --exact --silent --accept-source-agreements --accept-package-agreements",
+                timeout: TimeSpan.FromMinutes(5));
+            if (!r4.Success) allSucceeded = false;
+
+            StatusMessage = "Installing .NET 9 Runtime...";
+            var r5 = await _runner.RunAsync("winget",
+                "install --id Microsoft.DotNet.DesktopRuntime.9 --exact --silent --accept-source-agreements --accept-package-agreements",
+                timeout: TimeSpan.FromMinutes(5));
+            if (!r5.Success) allSucceeded = false;
+
+            StatusMessage = allSucceeded
+                ? "All .NET runtimes installed successfully."
+                : "Completed with errors — some runtimes may not have installed.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"All .NET Framework — error: {ex.Message}";
         }
         finally
         {
