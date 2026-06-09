@@ -46,6 +46,8 @@
         <conv:SectionToVisibilityConverter x:Key="SectionToVisibilityConverter" />
         <conv:StringToImageSourceConverter x:Key="StringToImageSourceConverter" />
         <conv:StringToVisibilityConverter x:Key="StringToVisibilityConverter" />
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <conv:InverseBooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" />
         <DropShadowEffect x:Key="DropShadowEffect"
                           Color="#22000000"
                           BlurRadius="12"

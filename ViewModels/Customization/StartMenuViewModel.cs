@@ -29,20 +29,21 @@ public class StartMenuViewModel : CustomizationCategoryViewModelBase
                 "HideRecommendedSection", 0, 1),
         };
 
-        BehaviorToggles = new List<PrivacyToggleItem>
+        var behaviorList = new List<PrivacyToggleItem>();
+        if (WindowsVersion.IsAtLeast22H2)
         {
-            new("Show Recently Added Apps",
+            behaviorList.Add(new("Show Recently Added Apps",
                 "Display newly installed applications at the top of the Start Menu app list",
                 "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Start",
-                "ShowRecentList", 1, 0),
+                "ShowRecentList", 1, 0));
 
-            new("Show Most Used Apps",
+            behaviorList.Add(new("Show Most Used Apps",
                 "Display your most frequently launched apps in the Start Menu",
                 "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Start",
-                "ShowFrequentList", 1, 0),
-
-            _bingSearch,
-        };
+                "ShowFrequentList", 1, 0));
+        }
+        behaviorList.Add(_bingSearch);
+        BehaviorToggles = behaviorList;
 
         ToggleCommand = new RelayCommand<PrivacyToggleItem>(OnToggle);
         CleanStartMenuCommand = new RelayCommand(OnCleanStartMenu);

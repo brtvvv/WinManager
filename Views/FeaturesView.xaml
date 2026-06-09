@@ -42,11 +42,33 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="{Binding Name}"
-                               FontWeight="SemiBold"
-                               FontSize="13"
-                               VerticalAlignment="Center"
-                               Foreground="{StaticResource TextPrimaryBrush}" />
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}"
+                                   FontWeight="SemiBold"
+                                   FontSize="13"
+                                   VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextPrimaryBrush}" />
+                        <TextBlock Text="May not work on 22H2+"
+                                   Foreground="Orange"
+                                   FontSize="10"
+                                   VerticalAlignment="Center"
+                                   Margin="8,0,0,0">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding Name}" Value="Legacy Media" />
+                                                <Condition Binding="{Binding DataContext.IsLegacyMediaSupported, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False" />
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
                     <TextBlock Grid.Column="1"
                                Text="{Binding StatusText}"
                                FontSize="12"

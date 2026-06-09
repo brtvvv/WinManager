@@ -1,6 +1,7 @@
 using System.IO;
 using Microsoft.Win32;
 using WinManager.Common;
+using WinManager.Helpers;
 using WinManager.Models;
 using WinManager.Models.Config;
 using WinManager.Services;
@@ -57,6 +58,8 @@ public class MainViewModel : ObservableObject
         get => _selectedSection;
         set => SetProperty(ref _selectedSection, value);
     }
+
+    public string WindowsVersionDisplay => WindowsVersion.DisplayName;
 
     public string OptimizationMessage  => "Coming soon: system optimization tweaks.";
     public string CustomizationMessage => "Coming soon: personalization and UI tweaks.";

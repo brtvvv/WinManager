@@ -54,7 +54,8 @@
 
                     <!-- Layout toggles: Recommended Section -->
                     <ItemsControl ItemsSource="{Binding LayoutToggles}"
-                                  IsEnabled="{Binding IsRecommendedSectionAvailable}">
+                                  Visibility="{Binding IsRecommendedSectionAvailable,
+                                      Converter={StaticResource BooleanToVisibilityConverter}}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Border Background="{StaticResource SurfaceBrush}"

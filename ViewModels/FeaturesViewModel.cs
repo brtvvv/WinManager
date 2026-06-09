@@ -1,4 +1,5 @@
 using WinManager.Common;
+using WinManager.Helpers;
 using WinManager.Models;
 using WinManager.Services;
 
@@ -52,6 +53,8 @@ public class FeaturesViewModel : ObservableObject
     public IReadOnlyList<FeatureItem> DownloadItems { get; }
     public IReadOnlyList<WindowsFeatureItem> EnableItems { get; }
     public IReadOnlyList<FeatureItem> RunItems { get; }
+
+    public bool IsLegacyMediaSupported => !WindowsVersion.IsAtLeast22H2;
 
     public RelayCommand<FeatureItem> ExecuteFeatureCommand { get; }
     public RelayCommand<WindowsFeatureItem> ToggleFeatureCommand { get; }

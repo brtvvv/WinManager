@@ -1,4 +1,5 @@
 using WinManager.Common;
+using WinManager.Helpers;
 using WinManager.Models;
 using WinManager.Services;
 
@@ -99,6 +100,8 @@ public class UpdateViewModel : OptimizationCategoryViewModelBase
 
     public IReadOnlyList<PrivacyToggleItem> AllItems { get; }
     public IReadOnlyList<UpdatePreset> Presets { get; }
+
+    public bool IsLatestUpdatesAvailable => WindowsVersion.IsAtLeast22H2;
     public RelayCommand<PrivacyToggleItem> ToggleCommand { get; }
     public RelayCommand<UpdatePreset> ApplyPresetCommand { get; }
     public RelayCommand DismissStatusCommand { get; }

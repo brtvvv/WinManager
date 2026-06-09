@@ -220,6 +220,11 @@
                     <TextBlock Text="{Binding Programs.Status}"
                                Margin="0,6,0,0"
                                Foreground="{StaticResource TextSecondaryBrush}" />
+                    <TextBlock Text="{Binding WindowsVersionDisplay}"
+                               Margin="0,4,0,0"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               FontSize="11"
+                               HorizontalAlignment="Right" />
                 </StackPanel>
             </Grid>
         </Border>

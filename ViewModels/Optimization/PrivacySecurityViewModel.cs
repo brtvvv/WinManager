@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Linq;
 using WinManager.Common;
+using WinManager.Helpers;
 using WinManager.Models;
 using WinManager.Services;
 
@@ -81,6 +82,8 @@ public class PrivacySecurityViewModel : OptimizationCategoryViewModelBase
     }
 
     public bool IsAdministrator => _uacService.IsAdministrator;
+
+    public bool IsCortanaAvailable => !WindowsVersion.IsAtLeast23H2;
 
     private void DetectCurrentLevel()
     {

@@ -99,6 +99,19 @@
                                                         Margin="0,3"
                                                         BorderBrush="{StaticResource BorderBrushMono}"
                                                         BorderThickness="1">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Style.Triggers>
+                                                                <MultiDataTrigger>
+                                                                    <MultiDataTrigger.Conditions>
+                                                                        <Condition Binding="{Binding Name}" Value="Allow Cortana" />
+                                                                        <Condition Binding="{Binding DataContext.IsCortanaAvailable, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False" />
+                                                                    </MultiDataTrigger.Conditions>
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </MultiDataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="*" />
