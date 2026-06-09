@@ -53,7 +53,8 @@
                     </Border>
 
                     <!-- Layout toggles: Recommended Section -->
-                    <ItemsControl ItemsSource="{Binding LayoutToggles}">
+                    <ItemsControl ItemsSource="{Binding LayoutToggles}"
+                                  IsEnabled="{Binding IsRecommendedSectionAvailable}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Border Background="{StaticResource SurfaceBrush}"

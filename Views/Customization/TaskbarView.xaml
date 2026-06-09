@@ -241,6 +241,26 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
+                    <!-- ═══ Apply Button ═══ -->
+                    <Button Content="Apply"
+                            Command="{Binding ApplyCommand}"
+                            HorizontalAlignment="Right"
+                            MinWidth="100"
+                            Margin="0,16,0,0"
+                            Padding="0,10"
+                            FontWeight="SemiBold">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasPendingChanges}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
                 </StackPanel>
             </ScrollViewer>
         </Border>

@@ -96,7 +96,10 @@ public class GamingPerformanceViewModel : OptimizationCategoryViewModelBase
         if (success)
         {
             if (item == _mouseAccelItem)
+            {
                 await SetMouseThresholds(target);
+                await ApplyMouseAccelLiveAsync(target);
+            }
             else if (item == _backgroundAppsItem)
                 await SetBackgroundAppToggle(target);
 
@@ -117,6 +120,22 @@ public class GamingPerformanceViewModel : OptimizationCategoryViewModelBase
         var hp = @"HKCU:\Control Panel\Mouse";
         await _runner.RunAsync("powershell.exe",
             $"-NoProfile -ExecutionPolicy Bypass -Command \"Set-ItemProperty -Path '{hp}' -Name 'MouseThreshold1' -Value '{t1}' -Type String -Force; Set-ItemProperty -Path '{hp}' -Name 'MouseThreshold2' -Value '{t2}' -Type String -Force\"");
+    }
+
+    private async Task ApplyMouseAccelLiveAsync(bool enable)
+    {
+        var speed = enable ? 1 : 0;
+        var t1 = enable ? 6 : 0;
+        var t2 = enable ? 10 : 0;
+        var script =
+            "Add-Type -TypeDefinition @'" +
+            "using System; using System.Runtime.InteropServices; " +
+            "public class M { " +
+            "[DllImport(\"user32.dll\")] public static extern bool SystemParametersInfo(uint u, uint p, int[] v, uint f); }" +
+            "'@ -EA SilentlyContinue; " +
+            $"[M]::SystemParametersInfo(0x0004, 0, [int[]]@({t1},{t2},{speed}), 0x03)";
+        await _runner.RunAsync("powershell.exe",
+            $"-NoProfile -ExecutionPolicy Bypass -Command \"{script}\"");
     }
 
     private async Task SetBackgroundAppToggle(bool enable)

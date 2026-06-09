@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using WinManager.Common;
+using WinManager.Helpers;
 using WinManager.Models;
 using WinManager.Services;
 
@@ -11,6 +12,7 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
     private readonly ProcessRunner _runner = new();
     private string _statusMessage = string.Empty;
     private bool _showStatus;
+    private bool _hasPendingChanges;
     private PowerSettingOption? _selectedSearchOption;
     private PowerSettingOption? _selectedAlignmentOption;
     private bool _suppressSearchChange;
@@ -31,17 +33,12 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
             new("Center", 1),
         };
 
-        ItemToggles = new List<PrivacyToggleItem>
+        var itemTogglesList = new List<PrivacyToggleItem>
         {
             new("Show Task View Button",
                 "Display the Task View button on the taskbar for virtual desktops and timeline",
                 "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
                 "ShowTaskViewButton", 1, 0),
-
-            new("Copilot Button",
-                "Show or hide the Microsoft Copilot preview button on the taskbar",
-                "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
-                "ShowCopilotButton", 1, 0),
 
             new("Show Widgets",
                 "Display the Widgets button on the taskbar for news, weather and quick info",
@@ -49,16 +46,31 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
                 "TaskbarDa", 1, 0),
         };
 
-        BehaviorToggles = new List<PrivacyToggleItem>
+        if (WindowsVersion.IsAtLeast23H2)
         {
-            new("Enable End Task in Taskbar",
+            itemTogglesList.Insert(1, new("Copilot Button",
+                "Show or hide the Microsoft Copilot preview button on the taskbar",
+                "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
+                "ShowCopilotButton", 1, 0));
+        }
+
+        ItemToggles = itemTogglesList;
+
+        var behaviorTogglesList = new List<PrivacyToggleItem>();
+
+        if (WindowsVersion.IsAtLeast23H2)
+        {
+            behaviorTogglesList.Add(new("Enable End Task in Taskbar",
                 "Right-clicking a taskbar app shows an End Task option to force close it",
                 "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarDeveloperSettings",
-                "TaskbarEndTask", 1, 0) { DefaultIsEnabled = false },
-        };
+                "TaskbarEndTask", 1, 0) { DefaultIsEnabled = false });
+        }
+
+        BehaviorToggles = behaviorTogglesList;
 
         ToggleCommand = new RelayCommand<PrivacyToggleItem>(OnToggle);
         CleanTaskbarCommand = new RelayCommand(OnCleanTaskbar);
+        ApplyCommand = new RelayCommand(OnApply);
         DismissStatusCommand = new RelayCommand(() => ShowStatus = false);
 
         _ = InitializeAsync();
@@ -70,6 +82,7 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
     public ObservableCollection<PowerSettingOption> AlignmentOptions { get; }
     public RelayCommand<PrivacyToggleItem> ToggleCommand { get; }
     public RelayCommand CleanTaskbarCommand { get; }
+    public RelayCommand ApplyCommand { get; }
     public RelayCommand DismissStatusCommand { get; }
 
     public string StatusMessage
@@ -84,6 +97,12 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
         private set => SetProperty(ref _showStatus, value);
     }
 
+    public bool HasPendingChanges
+    {
+        get => _hasPendingChanges;
+        private set => SetProperty(ref _hasPendingChanges, value);
+    }
+
     public PowerSettingOption? SelectedSearchOption
     {
         get => _selectedSearchOption;
@@ -94,8 +113,7 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
             if (_suppressSearchChange || value is null || previous is null) return;
             _ = ApplyDropdownAsync(
                 @"HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search",
-                "SearchboxTaskbarMode", value.Value, "Search in Taskbar",
-                restartExplorer: true);
+                "SearchboxTaskbarMode", value.Value, "Search in Taskbar");
         }
     }
 
@@ -140,12 +158,26 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
         {
             await _service.ReadStateAsync(item);
             item.IsChecking = false;
-            StatusMessage = $"{item.Name} \u2014 {item.StatusText.ToLowerInvariant()} successfully.";
+            HasPendingChanges = true;
+            StatusMessage = "Changes pending \u2014 click Apply to restart Explorer.";
         }
         else
         {
             StatusMessage = $"{item.Name} \u2014 failed. Check permissions.";
         }
+    }
+
+    // ── Apply ─────────────────────────────────────────────────────
+
+    private async void OnApply()
+    {
+        StatusMessage = "Restarting Explorer...";
+        ShowStatus = true;
+
+        await RunPsSuccessAsync("Stop-Process -Name explorer -Force; Start-Process explorer");
+
+        HasPendingChanges = false;
+        StatusMessage = "Applied \u2014 Explorer restarted.";
     }
 
     // ── Dropdowns ────────────────────────────────────────────────
@@ -168,8 +200,7 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
         _suppressAlignmentChange = false;
     }
 
-    private async Task ApplyDropdownAsync(string hkPath, string name, int value, string label,
-        bool restartExplorer = false)
+    private async Task ApplyDropdownAsync(string hkPath, string name, int value, string label)
     {
         StatusMessage = $"Applying: {label}...";
         ShowStatus = true;
@@ -178,12 +209,15 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
             $"New-Item -Path '{hkPath}' -Force -EA SilentlyContinue | Out-Null; " +
             $"Set-ItemProperty -Path '{hkPath}' -Name '{name}' -Value {value} -Type DWord -Force");
 
-        if (success && restartExplorer)
-            await RunPsSuccessAsync("Stop-Process -Name explorer -Force; Start-Process explorer");
-
-        StatusMessage = success
-            ? $"{label} updated successfully."
-            : $"{label} \u2014 failed. Check permissions.";
+        if (success)
+        {
+            HasPendingChanges = true;
+            StatusMessage = "Changes pending \u2014 click Apply to restart Explorer.";
+        }
+        else
+        {
+            StatusMessage = $"{label} \u2014 failed. Check permissions.";
+        }
     }
 
     // ── Clean Taskbar ────────────────────────────────────────────
@@ -207,6 +241,7 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
             "Remove-Item 'HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Taskband' -Recurse -Force -EA SilentlyContinue; " +
             "Stop-Process -Name explorer -Force; Start-Process explorer");
 
+        HasPendingChanges = false;
         StatusMessage = success
             ? "Taskbar cleaned successfully."
             : "Taskbar clean failed.";

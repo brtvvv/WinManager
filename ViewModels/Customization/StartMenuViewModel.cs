@@ -1,4 +1,5 @@
 using WinManager.Common;
+using WinManager.Helpers;
 using WinManager.Models;
 using WinManager.Services;
 
@@ -56,6 +57,8 @@ public class StartMenuViewModel : CustomizationCategoryViewModelBase
     public RelayCommand CleanStartMenuCommand { get; }
     public RelayCommand DismissStatusCommand { get; }
 
+    public bool IsRecommendedSectionAvailable => WindowsVersion.IsAtLeast22H2;
+
     public string StatusMessage
     {
         get => _statusMessage;
@@ -72,6 +75,12 @@ public class StartMenuViewModel : CustomizationCategoryViewModelBase
     {
         var all = LayoutToggles.Concat(BehaviorToggles).ToList();
         await _service.ReadAllStatesAsync(all);
+
+        if (!WindowsVersion.IsAtLeast22H2)
+        {
+            var rec = LayoutToggles.FirstOrDefault(t => t.Name == "Recommended Section");
+            if (rec is not null) rec.IsChecking = false;
+        }
     }
 
     // ── Toggles ──────────────────────────────────────────────────
@@ -127,9 +136,8 @@ public class StartMenuViewModel : CustomizationCategoryViewModelBase
         var success = await RunPsSuccessAsync(
             "$p = Join-Path $env:LocalAppData 'Packages\\Microsoft.Windows.StartMenuExperienceHost_cw5n1h2txyewy\\LocalState'; " +
             "Remove-Item (Join-Path $p 'start2.bin') -Force -EA SilentlyContinue; " +
-            "Stop-Process -Name StartMenuExperienceHost -Force -EA SilentlyContinue; " +
-            "Start-Sleep -Milliseconds 800; " +
-            "Start-Process StartMenuExperienceHost -EA SilentlyContinue");
+            "Remove-Item (Join-Path $p 'start.bin') -Force -EA SilentlyContinue; " +
+            "Stop-Process -Name StartMenuExperienceHost -Force -EA SilentlyContinue");
 
         StatusMessage = success
             ? "Start Menu cleaned successfully."

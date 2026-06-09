@@ -13,6 +13,7 @@ public class WindowsThemeViewModel : CustomizationCategoryViewModelBase
     private bool _showStatus;
 
     private readonly PrivacyToggleItem _darkMode;
+    private readonly PrivacyToggleItem _transparencyItem;
 
     public WindowsThemeViewModel() : base("Windows Theme")
     {
@@ -25,16 +26,17 @@ public class WindowsThemeViewModel : CustomizationCategoryViewModelBase
             ExtraValueNames = new[] { "SystemUsesLightTheme" }
         };
 
+        _transparencyItem = new("Transparency Effects",
+            "Enable translucency and blur effects on windows, taskbar and Start menu",
+            "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+            "EnableTransparency", 1, 0);
+
         ToggleGroups = new List<PrivacyToggleGroup>
         {
             new("Windows Theme", new List<PrivacyToggleItem>
             {
                 _darkMode,
-
-                new("Transparency Effects",
-                    "Enable translucency and blur effects on windows, taskbar and Start menu",
-                    "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize",
-                    "EnableTransparency", 1, 0),
+                _transparencyItem,
             }),
         };
 
@@ -84,6 +86,10 @@ public class WindowsThemeViewModel : CustomizationCategoryViewModelBase
                 await _runner.RunAsync("powershell.exe",
                     "-NoProfile -ExecutionPolicy Bypass -Command \"Stop-Process -Name explorer -Force; Start-Process explorer\"");
             }
+
+            if (item == _transparencyItem)
+                await _runner.RunAsync("powershell.exe",
+                    "-NoProfile -ExecutionPolicy Bypass -Command \"Stop-Process -Name explorer -Force; Start-Process explorer\"");
 
             await _service.ReadStateAsync(item);
             item.IsChecking = false;

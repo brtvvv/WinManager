@@ -115,8 +115,8 @@ public class PowerService
 
     public async Task<bool> SetHibernateAsync(bool enable)
     {
-        var result = await _runner.RunAsync("powercfg",
-            enable ? "/hibernate on" : "/hibernate off");
+        var result = await _runner.RunAsync("powershell.exe",
+            $"-NoProfile -ExecutionPolicy Bypass -Command \"powercfg {(enable ? "/hibernate on" : "/hibernate off")}\"");
         return result.Success;
     }
 
