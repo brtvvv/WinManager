@@ -171,13 +171,29 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
 
     private async void OnApply()
     {
-        StatusMessage = "Restarting Explorer...";
+        StatusMessage = "Applying \u2014 restarting Explorer...";
         ShowStatus = true;
 
         await RunPsSuccessAsync("Stop-Process -Name explorer -Force; Start-Process explorer");
 
+        await Task.Delay(2000);
+
+        var allToggles = ItemToggles.Concat(BehaviorToggles).ToList();
+        foreach (var t in allToggles)
+            await _service.SetStateAsync(t, t.IsEnabled);
+
+        if (_selectedSearchOption is not null)
+            await RunPsSuccessAsync(
+                $"Set-ItemProperty -Path 'HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Search' " +
+                $"-Name 'SearchboxTaskbarMode' -Value {_selectedSearchOption.Value} -Type DWord -Force");
+
+        if (_selectedAlignmentOption is not null)
+            await RunPsSuccessAsync(
+                $"Set-ItemProperty -Path 'HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced' " +
+                $"-Name 'TaskbarAl' -Value {_selectedAlignmentOption.Value} -Type DWord -Force");
+
         HasPendingChanges = false;
-        StatusMessage = "Applied \u2014 Explorer restarted.";
+        StatusMessage = "Applied \u2014 settings saved.";
     }
 
     // ── Dropdowns ────────────────────────────────────────────────
