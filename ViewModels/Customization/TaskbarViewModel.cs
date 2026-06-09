@@ -12,7 +12,7 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
     private readonly ProcessRunner _runner = new();
     private string _statusMessage = string.Empty;
     private bool _showStatus;
-    private bool _hasPendingChanges;
+    private bool _isBusy;
     private PowerSettingOption? _selectedSearchOption;
     private PowerSettingOption? _selectedAlignmentOption;
     private bool _suppressSearchChange;
@@ -70,7 +70,6 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
 
         ToggleCommand = new RelayCommand<PrivacyToggleItem>(OnToggle);
         CleanTaskbarCommand = new RelayCommand(OnCleanTaskbar);
-        ApplyCommand = new RelayCommand(OnApply);
         DismissStatusCommand = new RelayCommand(() => ShowStatus = false);
 
         _ = InitializeAsync();
@@ -82,7 +81,6 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
     public ObservableCollection<PowerSettingOption> AlignmentOptions { get; }
     public RelayCommand<PrivacyToggleItem> ToggleCommand { get; }
     public RelayCommand CleanTaskbarCommand { get; }
-    public RelayCommand ApplyCommand { get; }
     public RelayCommand DismissStatusCommand { get; }
 
     public string StatusMessage
@@ -97,12 +95,6 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
         private set => SetProperty(ref _showStatus, value);
     }
 
-    public bool HasPendingChanges
-    {
-        get => _hasPendingChanges;
-        private set => SetProperty(ref _hasPendingChanges, value);
-    }
-
     public PowerSettingOption? SelectedSearchOption
     {
         get => _selectedSearchOption;
@@ -111,9 +103,7 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
             var previous = _selectedSearchOption;
             if (!SetProperty(ref _selectedSearchOption, value)) return;
             if (_suppressSearchChange || value is null || previous is null) return;
-            _ = ApplyDropdownAsync(
-                @"HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search",
-                "SearchboxTaskbarMode", value.Value, "Search in Taskbar");
+            _ = ApplySearchAsync(value.Value);
         }
     }
 
@@ -125,9 +115,7 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
             var previous = _selectedAlignmentOption;
             if (!SetProperty(ref _selectedAlignmentOption, value)) return;
             if (_suppressAlignmentChange || value is null || previous is null) return;
-            _ = ApplyDropdownAsync(
-                @"HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
-                "TaskbarAl", value.Value, "Taskbar Alignment");
+            _ = ApplyAlignmentAsync(value.Value);
         }
     }
 
@@ -146,54 +134,29 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
 
     private async void OnToggle(PrivacyToggleItem? item)
     {
-        if (item is null) return;
+        if (item is null || _isBusy) return;
+        _isBusy = true;
 
         var target = !item.IsEnabled;
         StatusMessage = $"{(target ? "Enabling" : "Disabling")}: {item.Name}...";
         ShowStatus = true;
 
+        await RestartExplorerAsync();
         var success = await _service.SetStateAsync(item, target);
+        await StartExplorerAsync();
 
         if (success)
         {
             await _service.ReadStateAsync(item);
             item.IsChecking = false;
-            HasPendingChanges = true;
-            StatusMessage = "Changes pending \u2014 click Apply to restart Explorer.";
+            StatusMessage = $"{item.Name} \u2014 {item.StatusText.ToLowerInvariant()} successfully.";
         }
         else
         {
             StatusMessage = $"{item.Name} \u2014 failed. Check permissions.";
         }
-    }
 
-    // ── Apply ─────────────────────────────────────────────────────
-
-    private async void OnApply()
-    {
-        StatusMessage = "Applying \u2014 restarting Explorer...";
-        ShowStatus = true;
-
-        await RunPsSuccessAsync("Stop-Process -Name explorer -Force; Start-Process explorer");
-
-        await Task.Delay(2000);
-
-        var allToggles = ItemToggles.Concat(BehaviorToggles).ToList();
-        foreach (var t in allToggles)
-            await _service.SetStateAsync(t, t.IsEnabled);
-
-        if (_selectedSearchOption is not null)
-            await RunPsSuccessAsync(
-                $"Set-ItemProperty -Path 'HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Search' " +
-                $"-Name 'SearchboxTaskbarMode' -Value {_selectedSearchOption.Value} -Type DWord -Force");
-
-        if (_selectedAlignmentOption is not null)
-            await RunPsSuccessAsync(
-                $"Set-ItemProperty -Path 'HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced' " +
-                $"-Name 'TaskbarAl' -Value {_selectedAlignmentOption.Value} -Type DWord -Force");
-
-        HasPendingChanges = false;
-        StatusMessage = "Applied \u2014 settings saved.";
+        _isBusy = false;
     }
 
     // ── Dropdowns ────────────────────────────────────────────────
@@ -216,24 +179,50 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
         _suppressAlignmentChange = false;
     }
 
-    private async Task ApplyDropdownAsync(string hkPath, string name, int value, string label)
+    private async Task ApplySearchAsync(int value)
     {
-        StatusMessage = $"Applying: {label}...";
+        if (_isBusy) return;
+        _isBusy = true;
+
+        StatusMessage = "Applying: Search in Taskbar...";
         ShowStatus = true;
 
-        var success = await RunPsSuccessAsync(
-            $"New-Item -Path '{hkPath}' -Force -EA SilentlyContinue | Out-Null; " +
-            $"Set-ItemProperty -Path '{hkPath}' -Name '{name}' -Value {value} -Type DWord -Force");
+        await RestartExplorerAsync();
 
-        if (success)
-        {
-            HasPendingChanges = true;
-            StatusMessage = "Changes pending \u2014 click Apply to restart Explorer.";
-        }
-        else
-        {
-            StatusMessage = $"{label} \u2014 failed. Check permissions.";
-        }
+        var success = await RunPsSuccessAsync(
+            $"New-Item -Path 'HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Search' -Force -EA SilentlyContinue | Out-Null; " +
+            $"Set-ItemProperty -Path 'HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Search' -Name 'SearchboxTaskbarMode' -Value {value} -Type DWord -Force");
+
+        await StartExplorerAsync();
+
+        StatusMessage = success
+            ? "Search in Taskbar updated successfully."
+            : "Search in Taskbar \u2014 failed. Check permissions.";
+
+        _isBusy = false;
+    }
+
+    private async Task ApplyAlignmentAsync(int value)
+    {
+        if (_isBusy) return;
+        _isBusy = true;
+
+        StatusMessage = "Applying: Taskbar Alignment...";
+        ShowStatus = true;
+
+        await RestartExplorerAsync();
+
+        var success = await RunPsSuccessAsync(
+            $"New-Item -Path 'HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced' -Force -EA SilentlyContinue | Out-Null; " +
+            $"Set-ItemProperty -Path 'HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced' -Name 'TaskbarAl' -Value {value} -Type DWord -Force");
+
+        await StartExplorerAsync();
+
+        StatusMessage = success
+            ? "Taskbar Alignment updated successfully."
+            : "Taskbar Alignment \u2014 failed. Check permissions.";
+
+        _isBusy = false;
     }
 
     // ── Clean Taskbar ────────────────────────────────────────────
@@ -257,10 +246,21 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
             "Remove-Item 'HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Taskband' -Recurse -Force -EA SilentlyContinue; " +
             "Stop-Process -Name explorer -Force; Start-Process explorer");
 
-        HasPendingChanges = false;
         StatusMessage = success
             ? "Taskbar cleaned successfully."
             : "Taskbar clean failed.";
+    }
+
+    // ── Explorer lifecycle ───────────────────────────────────────
+
+    private async Task RestartExplorerAsync()
+    {
+        await RunPsSuccessAsync("Stop-Process -Name explorer -Force");
+    }
+
+    private async Task StartExplorerAsync()
+    {
+        await RunPsSuccessAsync("Start-Process explorer");
     }
 
     // ── Helpers ──────────────────────────────────────────────────
