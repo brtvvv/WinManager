@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Runtime.InteropServices;
+using Microsoft.Win32;
 using WinManager.Common;
 using WinManager.Helpers;
 using WinManager.Models;
@@ -12,19 +14,21 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
     private readonly ProcessRunner _runner = new();
     private string _statusMessage = string.Empty;
     private bool _showStatus;
-    private bool _isBusy;
     private PowerSettingOption? _selectedSearchOption;
     private PowerSettingOption? _selectedAlignmentOption;
     private bool _suppressSearchChange;
     private bool _suppressAlignmentChange;
+
+    private readonly PrivacyToggleItem _widgetsItem;
 
     public TaskbarViewModel() : base("Taskbar")
     {
         SearchOptions = new ObservableCollection<PowerSettingOption>
         {
             new("Hidden", 0),
-            new("Icon only", 1),
-            new("Search box", 2),
+            new("Search icon only", 1),
+            new("Search icon and label", 2),
+            new("Search box", 3),
         };
 
         AlignmentOptions = new ObservableCollection<PowerSettingOption>
@@ -33,6 +37,13 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
             new("Center", 1),
         };
 
+        // Widgets uses the Dsh policy — the per-user TaskbarDa value is
+        // protected on Windows 11 and rejects writes even when elevated.
+        _widgetsItem = new("Show Widgets",
+            "Display the Widgets button on the taskbar for news, weather and quick info",
+            "HKLM", @"SOFTWARE\Policies\Microsoft\Dsh",
+            "AllowNewsAndInterests", 1, 0);
+
         var itemTogglesList = new List<PrivacyToggleItem>
         {
             new("Show Task View Button",
@@ -40,10 +51,7 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
                 "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
                 "ShowTaskViewButton", 1, 0),
 
-            new("Show Widgets",
-                "Display the Widgets button on the taskbar for news, weather and quick info",
-                "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
-                "TaskbarDa", 1, 0),
+            _widgetsItem,
         };
 
         if (WindowsVersion.IsAtLeast23H2)
@@ -103,7 +111,7 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
             var previous = _selectedSearchOption;
             if (!SetProperty(ref _selectedSearchOption, value)) return;
             if (_suppressSearchChange || value is null || previous is null) return;
-            _ = ApplySearchAsync(value.Value);
+            _ = ApplySearchModeAsync(value.Value);
         }
     }
 
@@ -134,19 +142,20 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
 
     private async void OnToggle(PrivacyToggleItem? item)
     {
-        if (item is null || _isBusy) return;
-        _isBusy = true;
+        if (item is null) return;
 
         var target = !item.IsEnabled;
         StatusMessage = $"{(target ? "Enabling" : "Disabling")}: {item.Name}...";
         ShowStatus = true;
 
-        await RestartExplorerAsync();
         var success = await _service.SetStateAsync(item, target);
-        await StartExplorerAsync();
 
         if (success)
         {
+            // The Widgets policy is only re-read by Explorer on startup.
+            if (item == _widgetsItem)
+                await RestartExplorerAsync();
+
             await _service.ReadStateAsync(item);
             item.IsChecking = false;
             StatusMessage = $"{item.Name} \u2014 {item.StatusText.ToLowerInvariant()} successfully.";
@@ -155,8 +164,6 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
         {
             StatusMessage = $"{item.Name} \u2014 failed. Check permissions.";
         }
-
-        _isBusy = false;
     }
 
     // ── Dropdowns ────────────────────────────────────────────────
@@ -164,9 +171,9 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
     private async Task ReadSearchModeAsync()
     {
         var hp = @"HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search";
-        var val = await ReadDwordAsync(hp, "SearchboxTaskbarMode", 1);
+        var val = await ReadDwordAsync(hp, "SearchboxTaskbarMode", 3);
         _suppressSearchChange = true;
-        SelectedSearchOption = SearchOptions.FirstOrDefault(o => o.Value == val) ?? SearchOptions[1];
+        SelectedSearchOption = SearchOptions.FirstOrDefault(o => o.Value == val) ?? SearchOptions[^1];
         _suppressSearchChange = false;
     }
 
@@ -179,50 +186,75 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
         _suppressAlignmentChange = false;
     }
 
-    private async Task ApplySearchAsync(int value)
+    // Search box mode is not picked up by Explorer through a registry watch the
+    // way the Advanced\* values are. The Settings page writes the value and then
+    // broadcasts WM_SETTINGCHANGE("TraySettings") so the taskbar refreshes live.
+    // We mirror that exactly: write in-process via the same API regedit uses,
+    // then broadcast — no Explorer restart needed.
+    //
+    // IMPORTANT: never use `New-Item -Force` on these existing keys. On an
+    // existing registry key it deletes the whole key and recreates it empty,
+    // wiping sibling values such as SearchboxTaskbarModeCache that Explorer
+    // relies on to refresh live. Registry.SetValue only creates the key if it
+    // is missing and never touches other values.
+    private async Task ApplySearchModeAsync(int value)
     {
-        if (_isBusy) return;
-        _isBusy = true;
-
         StatusMessage = "Applying: Search in Taskbar...";
         ShowStatus = true;
 
-        await RestartExplorerAsync();
-
-        var success = await RunPsSuccessAsync(
-            $"New-Item -Path 'HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Search' -Force -EA SilentlyContinue | Out-Null; " +
-            $"Set-ItemProperty -Path 'HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Search' -Name 'SearchboxTaskbarMode' -Value {value} -Type DWord -Force");
-
-        await StartExplorerAsync();
+        var success = await Task.Run(() =>
+        {
+            var ok = WriteHkcuDword(
+                @"HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Search",
+                "SearchboxTaskbarMode", value);
+            if (ok) BroadcastTraySettingsChange();
+            return ok;
+        });
 
         StatusMessage = success
             ? "Search in Taskbar updated successfully."
             : "Search in Taskbar \u2014 failed. Check permissions.";
-
-        _isBusy = false;
     }
 
     private async Task ApplyAlignmentAsync(int value)
     {
-        if (_isBusy) return;
-        _isBusy = true;
-
         StatusMessage = "Applying: Taskbar Alignment...";
         ShowStatus = true;
 
-        await RestartExplorerAsync();
-
-        var success = await RunPsSuccessAsync(
-            $"New-Item -Path 'HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced' -Force -EA SilentlyContinue | Out-Null; " +
-            $"Set-ItemProperty -Path 'HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced' -Name 'TaskbarAl' -Value {value} -Type DWord -Force");
-
-        await StartExplorerAsync();
+        var success = await Task.Run(() => WriteHkcuDword(
+            @"HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
+            "TaskbarAl", value));
 
         StatusMessage = success
             ? "Taskbar Alignment updated successfully."
             : "Taskbar Alignment \u2014 failed. Check permissions.";
+    }
 
-        _isBusy = false;
+    private static bool WriteHkcuDword(string keyPath, string name, int value)
+    {
+        try
+        {
+            Registry.SetValue(keyPath, name, value, RegistryValueKind.DWord);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern IntPtr SendMessageTimeout(
+        IntPtr hWnd, uint msg, IntPtr wParam, string lParam,
+        uint flags, uint timeout, out IntPtr result);
+
+    private static void BroadcastTraySettingsChange()
+    {
+        const int HWND_BROADCAST = 0xFFFF;
+        const uint WM_SETTINGCHANGE = 0x001A;
+        const uint SMTO_ABORTIFHUNG = 0x0002;
+        SendMessageTimeout((IntPtr)HWND_BROADCAST, WM_SETTINGCHANGE,
+            IntPtr.Zero, "TraySettings", SMTO_ABORTIFHUNG, 1000, out _);
     }
 
     // ── Clean Taskbar ────────────────────────────────────────────
@@ -255,11 +287,8 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
 
     private async Task RestartExplorerAsync()
     {
-        await RunPsSuccessAsync("Stop-Process -Name explorer -Force");
-    }
-
-    private async Task StartExplorerAsync()
-    {
+        await RunPsSuccessAsync("Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue");
+        await Task.Delay(1000);
         await RunPsSuccessAsync("Start-Process explorer");
     }
 
