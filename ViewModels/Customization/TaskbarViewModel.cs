@@ -20,6 +20,7 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
     private bool _suppressAlignmentChange;
 
     private readonly PrivacyToggleItem _widgetsItem;
+    private readonly PrivacyToggleItem _taskViewItem;
 
     public TaskbarViewModel() : base("Taskbar")
     {
@@ -39,18 +40,22 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
 
         // Widgets uses the Dsh policy — the per-user TaskbarDa value is
         // protected on Windows 11 and rejects writes even when elevated.
+        // The policy key doesn't exist on fresh 21H2 Home installs, so default
+        // to enabled (Windows ships with widgets visible by default).
         _widgetsItem = new("Show Widgets",
             "Display the Widgets button on the taskbar for news, weather and quick info",
             "HKLM", @"SOFTWARE\Policies\Microsoft\Dsh",
-            "AllowNewsAndInterests", 1, 0);
+            "AllowNewsAndInterests", 1, 0)
+        { DefaultIsEnabled = true };
+
+        _taskViewItem = new("Show Task View Button",
+            "Display the Task View button on the taskbar for virtual desktops and timeline",
+            "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
+            "ShowTaskViewButton", 1, 0);
 
         var itemTogglesList = new List<PrivacyToggleItem>
         {
-            new("Show Task View Button",
-                "Display the Task View button on the taskbar for virtual desktops and timeline",
-                "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
-                "ShowTaskViewButton", 1, 0),
-
+            _taskViewItem,
             _widgetsItem,
         };
 
@@ -154,6 +159,11 @@ public class TaskbarViewModel : CustomizationCategoryViewModelBase
         {
             // The Widgets policy is only re-read by Explorer on startup.
             if (item == _widgetsItem)
+                await RestartExplorerAsync();
+
+            // Show Task View enables live, but disabling only takes effect
+            // after Explorer is restarted — match Settings behaviour.
+            else if (item == _taskViewItem && !target)
                 await RestartExplorerAsync();
 
             await _service.ReadStateAsync(item);

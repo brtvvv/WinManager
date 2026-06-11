@@ -220,19 +220,27 @@ public class PowerViewModel : OptimizationCategoryViewModelBase
 
     private async Task LoadAllSettingsAsync(string planGuid)
     {
-        var tasks = Settings
-            .Where(s => s.IsVisible || s == _hibernateTimeout || s == _lidClose)
-            .Select(async s =>
+        var tasks = Settings.Select(async s =>
+        {
+            try
             {
-                try
+                var (exists, ac, dc) = await _powerService.TryQuerySettingAsync(
+                    planGuid, s.SubGuid, s.SettingGuid);
+
+                if (!exists)
                 {
-                    var (ac, dc) = await _powerService.QuerySettingAsync(
-                        planGuid, s.SubGuid, s.SettingGuid);
-                    s.LoadValue(ac, true);
-                    s.LoadValue(dc, false);
+                    // Hide rows whose underlying setting GUID isn't exposed on
+                    // this hardware (Sleep timeout, Power Button, Lid Close on
+                    // certain VMs). Otherwise we'd render an empty 0-value row.
+                    s.IsVisible = false;
+                    return;
                 }
-                catch { /* setting may not exist on this hardware */ }
-            });
+
+                s.LoadValue(ac, true);
+                s.LoadValue(dc, false);
+            }
+            catch { /* setting may not exist on this hardware */ }
+        });
         await Task.WhenAll(tasks);
     }
 
@@ -256,6 +264,16 @@ public class PowerViewModel : OptimizationCategoryViewModelBase
 
     private async Task ToggleHibernateAsync()
     {
+        // Refuse to toggle when the platform doesn't expose hibernate at all
+        // — `powercfg /hibernate on` succeeds silently on these systems but
+        // hibernate never actually works (common on Hyper-V / cloud VMs).
+        if (!await _powerService.IsHibernateSupportedAsync())
+        {
+            StatusMessage = "Hibernation is not supported on this machine (common in virtual machines).";
+            ShowStatus = true;
+            return;
+        }
+
         var target = !HibernateEnabled;
         StatusMessage = target ? "Enabling hibernation..." : "Disabling hibernation...";
         ShowStatus = true;

@@ -94,35 +94,6 @@ public class WindowsAppService
         }
     }
 
-    public async Task InstallAsync(IEnumerable<SoftwareItem> apps, Action<string> log,
-        CancellationToken cancellationToken = default, Action<int, int, string>? onProgress = null)
-    {
-        var list = apps.ToList();
-        for (int i = 0; i < list.Count; i++)
-        {
-            var app = list[i];
-            app.IsBusy = true;
-            onProgress?.Invoke(i, list.Count, app.Name);
-            log($"[Install] {app.Name}");
-
-            if (!string.IsNullOrWhiteSpace(app.WingetId))
-            {
-                var args = $"install --id \"{app.WingetId}\" --exact --silent --accept-source-agreements --accept-package-agreements";
-                var result = await _runner.RunAsync("winget", args, cancellationToken);
-                app.StatusNote = result.Output.Trim();
-                log(result.Output);
-            }
-            else
-            {
-                app.StatusNote = "No Winget package found, skipped.";
-                log($"No Winget ID for {app.Name}, skipping install.");
-            }
-
-            app.IsBusy = false;
-        }
-        onProgress?.Invoke(list.Count, list.Count, "Done");
-    }
-
     public async Task UninstallAsync(IEnumerable<SoftwareItem> apps, Action<string> log,
         CancellationToken cancellationToken = default, Action<int, int, string>? onProgress = null)
     {

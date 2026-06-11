@@ -14,11 +14,18 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="{Binding Name}"
-                               FontWeight="SemiBold"
-                               FontSize="13"
-                               VerticalAlignment="Center"
-                               Foreground="{StaticResource TextPrimaryBrush}" />
+                    <StackPanel Orientation="Vertical" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}"
+                                   FontWeight="SemiBold"
+                                   FontSize="13"
+                                   Foreground="{StaticResource TextPrimaryBrush}" />
+                        <TextBlock Text="{Binding Description}"
+                                   FontSize="11"
+                                   Margin="0,2,0,0"
+                                   TextWrapping="Wrap"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Visibility="{Binding HasDescription, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    </StackPanel>
                     <Button Grid.Column="1"
                             Content="{Binding ButtonLabel}"
                             Command="{Binding DataContext.ExecuteFeatureCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
@@ -95,6 +102,7 @@
                             Content="{Binding ButtonLabel}"
                             Command="{Binding DataContext.ToggleFeatureCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                             CommandParameter="{Binding}"
+                            IsEnabled="{Binding IsActionable}"
                             MinWidth="70"
                             VerticalAlignment="Center" />
                 </Grid>

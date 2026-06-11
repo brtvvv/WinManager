@@ -37,7 +37,8 @@ public class FeaturesViewModel : ObservableObject
                 "Run"),
             new("Set Up Autologin",
                 "Start-Process netplwiz",
-                "Run"),
+                "Run",
+                description: "Works with local accounts only \u2014 Microsoft accounts are not supported"),
             new("System Corruption Scan",
                 "Start-Process powershell -ArgumentList 'sfc /scannow; Read-Host Press_Enter' -Verb RunAs",
                 "Run")
@@ -84,11 +85,7 @@ public class FeaturesViewModel : ObservableObject
         {
             try
             {
-                var result = await _runner.RunAsync("powershell.exe",
-                    $"-NoProfile -ExecutionPolicy Bypass -Command \"(Get-WindowsOptionalFeature -Online -FeatureName '{feature.WindowsFeatureName}').State\"");
-
-                var state = result.Output.Trim();
-                feature.IsEnabled = state.Equals("Enabled", StringComparison.OrdinalIgnoreCase);
+                await ReadFeatureStateAsync(feature);
             }
             catch
             {
@@ -106,14 +103,46 @@ public class FeaturesViewModel : ObservableObject
     {
         try
         {
-            var result = await _runner.RunAsync("powershell.exe",
-                $"-NoProfile -ExecutionPolicy Bypass -Command \"(Get-WindowsOptionalFeature -Online -FeatureName '{feature.WindowsFeatureName}').State\"");
-
-            var state = result.Output.Trim();
-            feature.IsEnabled = state.Equals("Enabled", StringComparison.OrdinalIgnoreCase);
+            await ReadFeatureStateAsync(feature);
         }
         catch
         {
+        }
+    }
+
+    // Get-WindowsOptionalFeature returns the feature's State on a single line.
+    // On Home editions some optional features (e.g. Hyper-V, WindowsMediaPlayer)
+    // are stripped entirely — the cmdlet emits no State value (empty stdout)
+    // and writes "feature is unknown" to stderr. Treat empty / unrecognized
+    // output as "Not available" so the UI disables the toggle instead of
+    // misleading the user.
+    private async Task ReadFeatureStateAsync(WindowsFeatureItem feature)
+    {
+        var result = await RunPowerShellWithFallbackAsync(
+            $"(Get-WindowsOptionalFeature -Online -FeatureName '{feature.WindowsFeatureName}').State");
+
+        var state = result.Output?.Trim() ?? string.Empty;
+
+        if (!result.Success || string.IsNullOrEmpty(state) ||
+            state.IndexOf("unknown", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            state.IndexOf("error", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            feature.IsNotAvailable = true;
+            feature.IsEnabled = false;
+            return;
+        }
+
+        if (state.Equals("Enabled", StringComparison.OrdinalIgnoreCase) ||
+            state.Equals("Disabled", StringComparison.OrdinalIgnoreCase) ||
+            state.EndsWith("Pending", StringComparison.OrdinalIgnoreCase))
+        {
+            feature.IsNotAvailable = false;
+            feature.IsEnabled = state.StartsWith("Enabled", StringComparison.OrdinalIgnoreCase);
+        }
+        else
+        {
+            feature.IsNotAvailable = true;
+            feature.IsEnabled = false;
         }
     }
 
@@ -121,6 +150,13 @@ public class FeaturesViewModel : ObservableObject
     {
         if (feature is null || IsBusy)
             return;
+
+        if (feature.IsNotAvailable)
+        {
+            StatusMessage = $"{feature.Name} is not available on this Windows edition.";
+            ShowStatus = true;
+            return;
+        }
 
         IsBusy = true;
         var action = feature.IsEnabled ? "Disabling" : "Enabling";
@@ -174,9 +210,18 @@ public class FeaturesViewModel : ObservableObject
         {
             var result = await RunPowerShellWithFallbackAsync(item.PowerShellCommand);
 
-            StatusMessage = result.Success
-                ? $"{item.Name} \u2014 completed successfully."
-                : $"{item.Name} \u2014 failed. {result.Output.Trim()}";
+            if (item.Name == "Set Up Autologin")
+            {
+                // netplwiz only works for local accounts; warn the user
+                // explicitly after launch instead of leaving "completed".
+                StatusMessage = "netplwiz opened. Works with local accounts only \u2014 Microsoft accounts are not supported.";
+            }
+            else
+            {
+                StatusMessage = result.Success
+                    ? $"{item.Name} \u2014 completed successfully."
+                    : $"{item.Name} \u2014 failed. {result.Output.Trim()}";
+            }
         }
         catch (Exception ex)
         {
@@ -213,51 +258,58 @@ public class FeaturesViewModel : ObservableObject
     {
         IsBusy = true;
         ShowStatus = true;
-        bool allSucceeded = true;
+        var missing = new List<string>();
 
         try
         {
             StatusMessage = "Installing .NET Framework 3.5...";
-            var r1 = await _runner.RunAsync("dism.exe",
+            await _runner.RunAsync("dism.exe",
                 "/online /enable-feature /featurename:NetFx3 /all /norestart /LimitAccess",
                 timeout: TimeSpan.FromMinutes(10));
-            if (!r1.Success) allSucceeded = false;
+            if (!await IsNetFx3EnabledAsync()) missing.Add(".NET Framework 3.5");
 
-            StatusMessage = "Installing .NET 6 Runtime...";
-            var r2 = await _runner.RunAsync("winget",
-                "install --id Microsoft.DotNet.DesktopRuntime.6 --exact --silent --accept-source-agreements --accept-package-agreements",
-                timeout: TimeSpan.FromMinutes(5));
-            if (!r2.Success) allSucceeded = false;
+            foreach (var major in new[] { 6, 7, 8, 9 })
+            {
+                StatusMessage = $"Installing .NET {major} Runtime...";
+                await _runner.RunAsync("winget",
+                    $"install --id Microsoft.DotNet.DesktopRuntime.{major} --exact --silent --accept-source-agreements --accept-package-agreements",
+                    timeout: TimeSpan.FromMinutes(5));
+                if (!await IsDesktopRuntimeInstalledAsync(major))
+                    missing.Add($".NET {major} Desktop Runtime");
+            }
 
-            StatusMessage = "Installing .NET 7 Runtime...";
-            var r3 = await _runner.RunAsync("winget",
-                "install --id Microsoft.DotNet.DesktopRuntime.7 --exact --silent --accept-source-agreements --accept-package-agreements",
-                timeout: TimeSpan.FromMinutes(5));
-            if (!r3.Success) allSucceeded = false;
-
-            StatusMessage = "Installing .NET 8 Runtime...";
-            var r4 = await _runner.RunAsync("winget",
-                "install --id Microsoft.DotNet.DesktopRuntime.8 --exact --silent --accept-source-agreements --accept-package-agreements",
-                timeout: TimeSpan.FromMinutes(5));
-            if (!r4.Success) allSucceeded = false;
-
-            StatusMessage = "Installing .NET 9 Runtime...";
-            var r5 = await _runner.RunAsync("winget",
-                "install --id Microsoft.DotNet.DesktopRuntime.9 --exact --silent --accept-source-agreements --accept-package-agreements",
-                timeout: TimeSpan.FromMinutes(5));
-            if (!r5.Success) allSucceeded = false;
-
-            StatusMessage = allSucceeded
+            StatusMessage = missing.Count == 0
                 ? "All .NET runtimes installed successfully."
-                : "Completed with errors — some runtimes may not have installed.";
+                : $"Missing after install: {string.Join(", ", missing)}";
         }
         catch (Exception ex)
         {
-            StatusMessage = $"All .NET Framework — error: {ex.Message}";
+            StatusMessage = $"All .NET Framework \u2014 error: {ex.Message}";
         }
         finally
         {
             IsBusy = false;
         }
+    }
+
+    // winget exits non-zero for benign outcomes ("already installed", "no
+    // applicable upgrade found"). Verify each runtime by querying `dotnet`
+    // itself instead of trusting the exit code.
+    private async Task<bool> IsDesktopRuntimeInstalledAsync(int major)
+    {
+        var result = await _runner.RunAsync("dotnet", "--list-runtimes",
+            timeout: TimeSpan.FromSeconds(30));
+        if (!result.Success) return false;
+        var prefix = $"Microsoft.WindowsDesktop.App {major}.";
+        return result.Output?.Contains(prefix, StringComparison.OrdinalIgnoreCase) == true;
+    }
+
+    private async Task<bool> IsNetFx3EnabledAsync()
+    {
+        var result = await _runner.RunAsync("dism.exe",
+            "/online /get-featureinfo /featurename:NetFx3",
+            timeout: TimeSpan.FromMinutes(2));
+        if (!result.Success) return false;
+        return result.Output?.IndexOf("State : Enabled", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 }

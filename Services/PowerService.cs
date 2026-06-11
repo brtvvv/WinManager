@@ -47,6 +47,17 @@ public class PowerService
     public async Task<(int ac, int dc)> QuerySettingAsync(
         string planGuid, string subGuid, string settingGuid)
     {
+        var (_, ac, dc) = await TryQuerySettingAsync(planGuid, subGuid, settingGuid);
+        return (ac, dc);
+    }
+
+    // powercfg /query returns no AC/DC hex values when the setting GUID is not
+    // exposed on this hardware (e.g. Lid Close on desktops, Sleep on minimal
+    // VMs). Callers use the `exists` flag to hide the corresponding row
+    // instead of rendering an empty control with default 0 values.
+    public async Task<(bool exists, int ac, int dc)> TryQuerySettingAsync(
+        string planGuid, string subGuid, string settingGuid)
+    {
         var result = await _runner.RunAsync("powercfg",
             $"/query {planGuid} {subGuid} {settingGuid}");
 
@@ -55,10 +66,29 @@ public class PowerService
             .Select(m => int.Parse(m.Groups[1].Value, NumberStyles.HexNumber))
             .ToList();
 
-        int ac = hexValues.Count >= 2 ? hexValues[^2] : 0;
-        int dc = hexValues.Count >= 2 ? hexValues[^1] : 0;
+        if (hexValues.Count < 2)
+            return (false, 0, 0);
 
-        return (ac, dc);
+        return (true, hexValues[^2], hexValues[^1]);
+    }
+
+    // powercfg /a lists every sleep state the firmware/hardware supports.
+    // "Hibernate" only appears in the "available" section when the platform
+    // actually supports it — common VMs (Hyper-V Gen 2, most cloud VMs) omit
+    // it. We use this to gate the Hibernate button instead of letting the
+    // user press it and silently fail.
+    public async Task<bool> IsHibernateSupportedAsync()
+    {
+        var result = await _runner.RunAsync("powercfg", "/a");
+        if (!result.Success || string.IsNullOrEmpty(result.Output))
+            return false;
+
+        var text = result.Output;
+        var unavailableIdx = text.IndexOf("following sleep states are not available",
+            StringComparison.OrdinalIgnoreCase);
+        var availablePart = unavailableIdx >= 0 ? text.Substring(0, unavailableIdx) : text;
+
+        return availablePart.IndexOf("Hibernate", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     public async Task<bool> SetValueAsync(

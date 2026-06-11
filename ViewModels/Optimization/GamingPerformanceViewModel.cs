@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using WinManager.Common;
 using WinManager.Models;
 using WinManager.Services;
@@ -13,6 +14,7 @@ public class GamingPerformanceViewModel : OptimizationCategoryViewModelBase
 
     private readonly PrivacyToggleItem _mouseAccelItem;
     private readonly PrivacyToggleItem _backgroundAppsItem;
+    private readonly PrivacyToggleItem _enhancedSearchItem;
 
     public GamingPerformanceViewModel() : base("Gaming & Performance")
     {
@@ -21,13 +23,24 @@ public class GamingPerformanceViewModel : OptimizationCategoryViewModelBase
             "HKCU", @"Control Panel\Mouse",
             "MouseSpeed", "1", "0") { IsStringValue = true };
 
-        // HKLM AppPrivacy policy is the authoritative key Windows reads to gate
-        // background apps globally — 1 = allow, 2 = deny. The per-user
-        // BackgroundAccessApplications value is ignored on modern builds.
+        // HKLM AppPrivacy policy: 1 = allow, 2 = deny. On a fresh system the
+        // value isn't written yet — Windows default is "allow", so seed the
+        // toggle as enabled so the first click correctly disables.
         _backgroundAppsItem = new("Background Apps",
             "Allows apps to receive info, send notifications and stay up to date even when not in use",
             "HKLM", @"SOFTWARE\Policies\Microsoft\Windows\AppPrivacy",
-            "LetAppsRunInBackground", 1, 2);
+            "LetAppsRunInBackground", 1, 2)
+        { DefaultIsEnabled = true };
+
+        // The HKCU SearchSettings flags only update the Settings UI display.
+        // The key Windows actually reads to switch to "Find My Files" indexing
+        // is HKLM\SOFTWARE\Microsoft\Windows Search\EnableFindMyFiles, and the
+        // WSearch service has to be restarted to pick it up.
+        _enhancedSearchItem = new("Search Entire Filesystem",
+            "Enables Enhanced \"Find My Files\" indexing \u2014 Windows Search indexes the entire drive for faster results",
+            "HKLM", @"SOFTWARE\Microsoft\Windows Search",
+            "EnableFindMyFiles", 1, 0)
+        { DefaultIsEnabled = false };
 
         ToggleGroups = new List<PrivacyToggleGroup>
         {
@@ -50,17 +63,7 @@ public class GamingPerformanceViewModel : OptimizationCategoryViewModelBase
                     "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy",
                     "01", 1, 0) { DefaultIsEnabled = false },
 
-                // IsEnhancedSearchInterfaceEnabled alone doesn't switch indexing
-                // scope. Mirror IsEnhancedSearchEnabled in the same key — the
-                // value Windows actually checks to enable enhanced indexing.
-                new("Search Entire Filesystem",
-                    "Enables Enhanced indexing mode \u2014 Windows Search indexes the entire drive for faster results",
-                    "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\SearchSettings",
-                    "IsEnhancedSearchInterfaceEnabled", 1, 0)
-                {
-                    DefaultIsEnabled = false,
-                    ExtraValueNames = new[] { "IsEnhancedSearchEnabled" }
-                },
+                _enhancedSearchItem,
             }),
         };
 
@@ -110,16 +113,21 @@ public class GamingPerformanceViewModel : OptimizationCategoryViewModelBase
                 await SetMouseThresholds(target);
                 await ApplyMouseAccelLiveAsync(target);
             }
-            else if (item == _backgroundAppsItem)
-                await SetBackgroundAppToggle(target);
+            else if (item == _enhancedSearchItem)
+            {
+                // WSearch service caches EnableFindMyFiles in-memory; restart
+                // it so the new indexing scope takes effect immediately.
+                await _runner.RunAsync("powershell.exe",
+                    "-NoProfile -ExecutionPolicy Bypass -Command \"Restart-Service WSearch -Force -EA SilentlyContinue\"");
+            }
 
             await _service.ReadStateAsync(item);
             item.IsChecking = false;
-            StatusMessage = $"{item.Name} — {item.StatusText.ToLowerInvariant()} successfully.";
+            StatusMessage = $"{item.Name} \u2014 {item.StatusText.ToLowerInvariant()} successfully.";
         }
         else
         {
-            StatusMessage = $"{item.Name} — failed. Run as administrator.";
+            StatusMessage = $"{item.Name} \u2014 failed. Run as administrator.";
         }
     }
 
@@ -132,21 +140,21 @@ public class GamingPerformanceViewModel : OptimizationCategoryViewModelBase
             $"-NoProfile -ExecutionPolicy Bypass -Command \"Set-ItemProperty -Path '{hp}' -Name 'MouseThreshold1' -Value '{t1}' -Type String -Force; Set-ItemProperty -Path '{hp}' -Name 'MouseThreshold2' -Value '{t2}' -Type String -Force\"");
     }
 
-    // SPI_SETMOUSE through P/Invoke with int[] is fragile (the API actually
-    // expects a pointer to a 3-element array, not a managed int[]). Use the
-    // same approach Control Panel uses: UpdatePerUserSystemParameters forces
-    // Windows to re-read all Control Panel\Mouse values we just wrote.
-    private async Task ApplyMouseAccelLiveAsync(bool _)
-    {
-        await _runner.RunAsync("rundll32.exe", "user32.dll,UpdatePerUserSystemParameters");
-    }
+    // Run SystemParametersInfo in-process so there are no PowerShell quoting
+    // pitfalls. SPIF_UPDATEINIFILE persists the change for new sessions and
+    // SPIF_SENDCHANGE broadcasts WM_SETTINGCHANGE so the running session
+    // picks it up without sign-out.
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SystemParametersInfo(uint uiAction, uint uiParam, int[] pvParam, uint fWinIni);
 
-    private async Task SetBackgroundAppToggle(bool enable)
+    private const uint SPI_SETMOUSE = 0x0004;
+    private const uint SPIF_UPDATEINIFILE = 0x01;
+    private const uint SPIF_SENDCHANGE = 0x02;
+
+    private Task ApplyMouseAccelLiveAsync(bool enable)
     {
-        // HKLM policy LetAppsRunInBackground — 1 = allow, 2 = deny.
-        var val = enable ? 1 : 2;
-        var hp = @"HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy";
-        await _runner.RunAsync("powershell.exe",
-            $"-NoProfile -ExecutionPolicy Bypass -Command \"New-Item -Path '{hp}' -Force -EA SilentlyContinue | Out-Null; Set-ItemProperty -Path '{hp}' -Name 'LetAppsRunInBackground' -Value {val} -Type DWord -Force\"");
+        var mouseParams = enable ? new[] { 6, 10, 1 } : new[] { 0, 0, 0 };
+        SystemParametersInfo(SPI_SETMOUSE, 0, mouseParams, SPIF_UPDATEINIFILE | SPIF_SENDCHANGE);
+        return Task.CompletedTask;
     }
 }

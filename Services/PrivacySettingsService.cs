@@ -57,6 +57,14 @@ public class PrivacySettingsService
         {
             item.IsEnabled = item.DefaultIsEnabled;
         }
+        finally
+        {
+            // Always clear the checking flag so the UI never sticks on
+            // "Checking..." for items whose underlying policy key is missing
+            // or whose PowerShell read failed (e.g. Widgets on 21H2 Home where
+            // the HKLM Dsh key doesn't exist out of the box).
+            item.IsChecking = false;
+        }
     }
 
     public async Task<bool> SetStateAsync(PrivacyToggleItem item, bool enable)
