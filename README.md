@@ -5,7 +5,7 @@ Windows configuration manager — install/uninstall apps, tweak privacy, power, 
 ## Instalacja
 
 ```powershell
-iex (irm https://raw.githubusercontent.com/brtvvv/WinManager/main/install.ps1)
+iex (irm https://raw.githubusercontent.com/brtvvv/WinManager/dev/install.ps1)
 ```
 
 Skrypt pobiera najnowszy release z GitHub, instaluje do `%LOCALAPPDATA%\WinManager` i tworzy skrot na pulpicie.
