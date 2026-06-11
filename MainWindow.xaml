@@ -326,8 +326,6 @@
                                     <StackPanel Grid.Column="1" Orientation="Horizontal">
                                         <Button Content="Refresh"
                                                 Command="{Binding Programs.RefreshCommand}" />
-                                        <Button Content="Install selected"
-                                                Command="{Binding Programs.InstallWindowsCommand}" />
                                         <Button Content="Uninstall selected"
                                                 Command="{Binding Programs.UninstallWindowsCommand}" />
                                         <Button Content="Cancel"

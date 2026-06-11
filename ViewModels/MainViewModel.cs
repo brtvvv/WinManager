@@ -109,7 +109,7 @@ public class MainViewModel : ObservableObject
             return;
         }
 
-        ApplyConfig(config);
+        await ApplyConfig(config);
         ShowWelcome = false;
         SelectedSection = AppSection.Programs;
         ConfigStatus = $"Loaded {Path.GetFileName(dialog.FileName)}";
@@ -153,7 +153,12 @@ public class MainViewModel : ObservableObject
         return cfg;
     }
 
-    private void ApplyConfig(WinManagerConfig cfg)
+    // Toggle handlers are `async void` fire-and-forget. Firing them all at once
+    // causes race conditions on the registry/services where some calls win and
+    // others silently fail. Awaiting Task.Delay between executions yields back
+    // to the dispatcher so each handler can write its registry value and
+    // refresh its state before the next one starts.
+    private async Task ApplyConfig(WinManagerConfig cfg)
     {
         foreach (var app in Programs.ExternalApps)
             app.IsSelected = cfg.SelectedExternalApps.Contains(app.Id);
@@ -162,7 +167,10 @@ public class MainViewModel : ObservableObject
         foreach (var item in priv.ToggleGroups.SelectMany(g => g.Items))
         {
             if (cfg.Privacy.TryGetValue(item.Name, out var target) && item.IsEnabled != target)
+            {
                 priv.TogglePrivacyCommand.Execute(item);
+                await Task.Delay(300);
+            }
         }
         if (cfg.UacLevelName is not null)
         {
@@ -178,30 +186,45 @@ public class MainViewModel : ObservableObject
         foreach (var item in Optimization.GamingVm.ToggleGroups.SelectMany(g => g.Items))
         {
             if (cfg.Gaming.TryGetValue(item.Name, out var target) && item.IsEnabled != target)
+            {
                 Optimization.GamingVm.ToggleCommand.Execute(item);
+                await Task.Delay(300);
+            }
         }
 
         foreach (var item in Optimization.UpdateVm.AllItems)
         {
             if (cfg.Updates.TryGetValue(item.Name, out var target) && item.IsEnabled != target)
+            {
                 Optimization.UpdateVm.ToggleCommand.Execute(item);
+                await Task.Delay(300);
+            }
         }
 
         foreach (var item in Optimization.NotificationsVm.ToggleGroups.SelectMany(g => g.Items))
         {
             if (cfg.Notifications.TryGetValue(item.Name, out var target) && item.IsEnabled != target)
+            {
                 Optimization.NotificationsVm.ToggleCommand.Execute(item);
+                await Task.Delay(300);
+            }
         }
 
         foreach (var item in Optimization.SoundVm.ToggleGroups.SelectMany(g => g.Items))
         {
             if (cfg.Sound.TryGetValue(item.Name, out var target) && item.IsEnabled != target)
+            {
                 Optimization.SoundVm.ToggleCommand.Execute(item);
+                await Task.Delay(300);
+            }
         }
 
         var pwr = Optimization.PowerVm;
         if (cfg.HibernateEnabled.HasValue && pwr.HibernateEnabled != cfg.HibernateEnabled.Value)
+        {
             pwr.ToggleHibernateCommand.Execute(null);
+            await Task.Delay(300);
+        }
         foreach (var s in pwr.Settings)
         {
             if (cfg.PowerSettings.TryGetValue(s.Name, out var ps))
@@ -209,7 +232,9 @@ public class MainViewModel : ObservableObject
                 s.AcValue = ps.AcValue;
                 s.DcValue = ps.DcValue;
                 s.ApplyAcCommand.Execute(null);
+                await Task.Delay(300);
                 s.ApplyDcCommand.Execute(null);
+                await Task.Delay(300);
             }
         }
     }

@@ -101,10 +101,36 @@ public class ExternalAppService
         };
     }
 
+    // On 21H2 (and any image where the App Installer package is missing) winget
+    // is not on PATH, and bare _runner.RunAsync("winget", ...) hangs because the
+    // process either never starts or never exits. Resolve the absolute path via
+    // PowerShell once per operation and bail early if not found.
+    private async Task<string?> ResolveWingetPathAsync(Action<string> log,
+        CancellationToken cancellationToken)
+    {
+        var result = await _runner.RunAsync("powershell.exe",
+            "-NoProfile -ExecutionPolicy Bypass -Command \"(Get-Command winget -EA SilentlyContinue).Source\"",
+            cancellationToken);
+        var path = result.Output?.Trim();
+        if (!result.Success || string.IsNullOrWhiteSpace(path) || !System.IO.File.Exists(path))
+        {
+            log("winget not found \u2014 install App Installer from the Microsoft Store");
+            return null;
+        }
+        return path;
+    }
+
     public async Task InstallAsync(IEnumerable<SoftwareItem> apps, Action<string> log,
         CancellationToken cancellationToken = default, Action<int, int, string>? onProgress = null)
     {
         var list = apps.ToList();
+        var wingetPath = await ResolveWingetPathAsync(log, cancellationToken);
+        if (wingetPath is null)
+        {
+            onProgress?.Invoke(list.Count, list.Count, "winget unavailable");
+            return;
+        }
+
         for (int i = 0; i < list.Count; i++)
         {
             var app = list[i];
@@ -117,10 +143,13 @@ public class ExternalAppService
             }
 
             log($"[Install] {app.Name}");
-            var result = await _runner.RunAsync("winget",
+            var result = await _runner.RunAsync(wingetPath,
                 $"install --id \"{app.WingetId}\" --exact --silent --accept-source-agreements --accept-package-agreements",
                 cancellationToken);
-            log(result.Output);
+            if (result.Success)
+                log(result.Output);
+            else
+                log($"[Install FAILED] {app.Name}: {result.Output.Trim()}");
         }
         onProgress?.Invoke(list.Count, list.Count, "Done");
     }
@@ -129,6 +158,13 @@ public class ExternalAppService
         CancellationToken cancellationToken = default, Action<int, int, string>? onProgress = null)
     {
         var list = apps.ToList();
+        var wingetPath = await ResolveWingetPathAsync(log, cancellationToken);
+        if (wingetPath is null)
+        {
+            onProgress?.Invoke(list.Count, list.Count, "winget unavailable");
+            return;
+        }
+
         for (int i = 0; i < list.Count; i++)
         {
             var app = list[i];
@@ -141,7 +177,7 @@ public class ExternalAppService
             }
 
             log($"[Uninstall] {app.Name}");
-            var result = await _runner.RunAsync("winget",
+            var result = await _runner.RunAsync(wingetPath,
                 $"uninstall --id \"{app.WingetId}\" --exact --silent --accept-source-agreements",
                 cancellationToken);
             if (result.Success)

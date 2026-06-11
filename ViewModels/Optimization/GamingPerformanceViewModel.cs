@@ -21,10 +21,13 @@ public class GamingPerformanceViewModel : OptimizationCategoryViewModelBase
             "HKCU", @"Control Panel\Mouse",
             "MouseSpeed", "1", "0") { IsStringValue = true };
 
+        // HKLM AppPrivacy policy is the authoritative key Windows reads to gate
+        // background apps globally — 1 = allow, 2 = deny. The per-user
+        // BackgroundAccessApplications value is ignored on modern builds.
         _backgroundAppsItem = new("Background Apps",
             "Allows apps to receive info, send notifications and stay up to date even when not in use",
-            "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications",
-            "GlobalUserDisabled", 0, 1);
+            "HKLM", @"SOFTWARE\Policies\Microsoft\Windows\AppPrivacy",
+            "LetAppsRunInBackground", 1, 2);
 
         ToggleGroups = new List<PrivacyToggleGroup>
         {
@@ -47,10 +50,17 @@ public class GamingPerformanceViewModel : OptimizationCategoryViewModelBase
                     "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy",
                     "01", 1, 0) { DefaultIsEnabled = false },
 
+                // IsEnhancedSearchInterfaceEnabled alone doesn't switch indexing
+                // scope. Mirror IsEnhancedSearchEnabled in the same key — the
+                // value Windows actually checks to enable enhanced indexing.
                 new("Search Entire Filesystem",
                     "Enables Enhanced indexing mode \u2014 Windows Search indexes the entire drive for faster results",
                     "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\SearchSettings",
-                    "IsEnhancedSearchInterfaceEnabled", 1, 0) { DefaultIsEnabled = false },
+                    "IsEnhancedSearchInterfaceEnabled", 1, 0)
+                {
+                    DefaultIsEnabled = false,
+                    ExtraValueNames = new[] { "IsEnhancedSearchEnabled" }
+                },
             }),
         };
 
@@ -122,27 +132,21 @@ public class GamingPerformanceViewModel : OptimizationCategoryViewModelBase
             $"-NoProfile -ExecutionPolicy Bypass -Command \"Set-ItemProperty -Path '{hp}' -Name 'MouseThreshold1' -Value '{t1}' -Type String -Force; Set-ItemProperty -Path '{hp}' -Name 'MouseThreshold2' -Value '{t2}' -Type String -Force\"");
     }
 
-    private async Task ApplyMouseAccelLiveAsync(bool enable)
+    // SPI_SETMOUSE through P/Invoke with int[] is fragile (the API actually
+    // expects a pointer to a 3-element array, not a managed int[]). Use the
+    // same approach Control Panel uses: UpdatePerUserSystemParameters forces
+    // Windows to re-read all Control Panel\Mouse values we just wrote.
+    private async Task ApplyMouseAccelLiveAsync(bool _)
     {
-        var speed = enable ? 1 : 0;
-        var t1 = enable ? 6 : 0;
-        var t2 = enable ? 10 : 0;
-        var script =
-            "Add-Type -TypeDefinition @'" +
-            "using System; using System.Runtime.InteropServices; " +
-            "public class M { " +
-            "[DllImport(\"user32.dll\")] public static extern bool SystemParametersInfo(uint u, uint p, int[] v, uint f); }" +
-            "'@ -EA SilentlyContinue; " +
-            $"[M]::SystemParametersInfo(0x0004, 0, [int[]]@({t1},{t2},{speed}), 0x03)";
-        await _runner.RunAsync("powershell.exe",
-            $"-NoProfile -ExecutionPolicy Bypass -Command \"{script}\"");
+        await _runner.RunAsync("rundll32.exe", "user32.dll,UpdatePerUserSystemParameters");
     }
 
     private async Task SetBackgroundAppToggle(bool enable)
     {
-        var val = enable ? 1 : 0;
-        var hp = @"HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search";
+        // HKLM policy LetAppsRunInBackground — 1 = allow, 2 = deny.
+        var val = enable ? 1 : 2;
+        var hp = @"HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy";
         await _runner.RunAsync("powershell.exe",
-            $"-NoProfile -ExecutionPolicy Bypass -Command \"New-Item -Path '{hp}' -Force -EA SilentlyContinue | Out-Null; Set-ItemProperty -Path '{hp}' -Name 'BackgroundAppGlobalToggle' -Value {val} -Type DWord -Force\"");
+            $"-NoProfile -ExecutionPolicy Bypass -Command \"New-Item -Path '{hp}' -Force -EA SilentlyContinue | Out-Null; Set-ItemProperty -Path '{hp}' -Name 'LetAppsRunInBackground' -Value {val} -Type DWord -Force\"");
     }
 }

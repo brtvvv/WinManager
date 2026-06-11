@@ -16,10 +16,15 @@ public class NotificationsViewModel : OptimizationCategoryViewModelBase
         {
             new("Notifications", new List<PrivacyToggleItem>
             {
+                // ToastEnabled only gates push-based toasts; many notification
+                // sources bypass it. NoToastApplicationNotification under the
+                // Explorer policy key is the system-wide kill switch for all
+                // toast notifications. Enabled=0 (no policy = notifications on),
+                // Disabled=1 (policy set to 1 = notifications globally off).
                 new("Show Notifications",
                     "Enable or disable all Windows notifications globally",
-                    "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\PushNotifications",
-                    "ToastEnabled", 1, 0),
+                    "HKCU", @"SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\PushNotifications",
+                    "NoToastApplicationNotification", 0, 1),
 
                 new("Allow Notifications to Play Sounds",
                     "Notifications will play a sound when they appear",

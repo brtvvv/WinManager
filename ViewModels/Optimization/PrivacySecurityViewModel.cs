@@ -206,157 +206,146 @@ public class PrivacySecurityViewModel : OptimizationCategoryViewModelBase
 
     // ── Item definitions ─────────────────────────────────────────
 
-    private static IReadOnlyList<PrivacyToggleGroup> BuildToggleGroups() => new List<PrivacyToggleGroup>
+    // "Block Workplace Join Messages" and "Remote Assistance" rely on Group
+    // Policy / Remote Assistance subsystems that ship only on Pro/Enterprise/
+    // Education SKUs. Hide them on Home so the user doesn't toggle something
+    // that has no effect. Content Delivery Manager / Subscribed Content / Lock
+    // Screen Fun Facts / Lock Screen Slideshow were removed entirely because
+    // they either no longer work consistently across 21H2–25H2 or are now
+    // governed by other settings the app already exposes.
+    private static IReadOnlyList<PrivacyToggleGroup> BuildToggleGroups()
     {
-        new("Device & System Security", new List<PrivacyToggleItem>
+        var isPro = WindowsVersion.IsProOrEnterprise;
+
+        var deviceSecurity = new List<PrivacyToggleItem>();
+        if (isPro)
         {
-            new("Block Workplace Join Messages",
+            deviceSecurity.Add(new("Block Workplace Join Messages",
                 "Prevent workplace join prompts from appearing",
                 "HKLM", @"SOFTWARE\Policies\Microsoft\Windows\WorkplaceJoin",
-                "BlockAADWorkplaceJoin", 1, 0) { DefaultIsEnabled = false },
+                "BlockAADWorkplaceJoin", 1, 0) { DefaultIsEnabled = false });
+        }
 
-            new("Prevent BitLocker Auto Encryption",
-                "Stop automatic BitLocker device encryption",
-                "HKLM", @"SYSTEM\CurrentControlSet\Control\BitLocker",
-                "PreventDeviceEncryption", 1, 0) { DefaultIsEnabled = false },
+        deviceSecurity.Add(new("Prevent BitLocker Auto Encryption",
+            "Stop automatic BitLocker device encryption",
+            "HKLM", @"SYSTEM\CurrentControlSet\Control\BitLocker",
+            "PreventDeviceEncryption", 1, 0) { DefaultIsEnabled = false });
 
-            new("Remote Assistance",
+        if (isPro)
+        {
+            deviceSecurity.Add(new("Remote Assistance",
                 "Allow others to connect to your PC for help",
                 "HKLM", @"SYSTEM\CurrentControlSet\Control\Remote Assistance",
-                "fAllowToGetHelp", 1, 0),
-        }),
+                "fAllowToGetHelp", 1, 0));
+        }
 
-        new("Networking & Connectivity", new List<PrivacyToggleItem>
+        return new List<PrivacyToggleGroup>
         {
-            new("WiFi Sense",
-                "Auto-connect to suggested Wi-Fi networks",
-                "HKLM", @"SOFTWARE\Microsoft\WcmSvc\wifinetworkmanager\config",
-                "AutoConnectAllowedOEM", 1, 0),
-        }),
+            new("Device & System Security", deviceSecurity),
 
-        new("Diagnostics & Telemetry", new List<PrivacyToggleItem>
-        {
-            PrivacyToggleItem.ForService("Windows Error Reporting",
-                "Send crash reports to Microsoft via WerSvc", "WerSvc"),
-
-            new("Send Diagnostic Data",
-                "Send full telemetry data to Microsoft",
-                "HKLM", @"SOFTWARE\Policies\Microsoft\Windows\DataCollection",
-                "AllowTelemetry", 3, 0),
-
-            new("Tailored Experiences",
-                "Personalized tips based on diagnostic data",
-                "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Privacy",
-                "TailoredExperiencesWithDiagnosticDataEnabled", 1, 0),
-
-            new("Allow Feedback Requests",
-                "Let Windows ask for feedback periodically",
-                "HKCU", @"SOFTWARE\Microsoft\Siuf\Rules",
-                "NumberOfSIUFInPeriod", 1, 0) { DeleteOnEnable = true },
-
-            new("App Diagnostic Access",
-                "Allow apps to access diagnostic information",
-                "HKLM", @"SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\appDiagnostics",
-                "Value", "Allow", "Deny") { IsStringValue = true },
-        }),
-
-        new("Advertising & Content", new List<PrivacyToggleItem>
-        {
-            new("Advertising ID",
-                "Let apps use your advertising ID for targeted ads",
-                "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo",
-                "Enabled", 1, 0),
-
-            new("Content Delivery Manager",
-                "Suggested apps, OEM pre-installs and silent installs",
-                "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager",
-                "ContentDeliveryAllowed", 1, 0)
+            new("Networking & Connectivity", new List<PrivacyToggleItem>
             {
-                ExtraValueNames = new[]
-                {
-                    "OemPreInstalledAppsEnabled",
-                    "PreInstalledAppsEnabled",
-                    "SilentInstalledAppsEnabled",
-                    "PreInstalledAppsEverEnabled"
-                }
-            },
+                new("WiFi Sense",
+                    "Auto-connect to suggested Wi-Fi networks",
+                    "HKLM", @"SOFTWARE\Microsoft\WcmSvc\wifinetworkmanager\config",
+                    "AutoConnectAllowedOEM", 1, 0),
+            }),
 
-            new("Subscribed Content (Tips & Suggestions)",
-                "Show tips, tricks and suggestions in Windows",
-                "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager",
-                "SubscribedContent-338389Enabled", 1, 0),
-        }),
+            new("Diagnostics & Telemetry", new List<PrivacyToggleItem>
+            {
+                PrivacyToggleItem.ForService("Windows Error Reporting",
+                    "Send crash reports to Microsoft via WerSvc", "WerSvc"),
 
-        new("Lock Screen", new List<PrivacyToggleItem>
-        {
-            new("Lock Workstation",
-                "Allow locking the PC via Win+L, Start menu, and Ctrl+Alt+Del",
-                "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System",
-                "DisableLockWorkstation", 0, 1),
+                new("Send Diagnostic Data",
+                    "Send full telemetry data to Microsoft",
+                    "HKLM", @"SOFTWARE\Policies\Microsoft\Windows\DataCollection",
+                    "AllowTelemetry", 3, 0),
 
-            new("Windows Spotlight",
-                "Dynamic backgrounds and content on lock screen",
-                "HKCU", @"SOFTWARE\Policies\Microsoft\Windows\CloudContent",
-                "DisableWindowsSpotlightFeatures", 0, 1),
+                new("Tailored Experiences",
+                    "Personalized tips based on diagnostic data",
+                    "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Privacy",
+                    "TailoredExperiencesWithDiagnosticDataEnabled", 1, 0),
 
-            new("Lock Screen Fun Facts & Tips",
-                "Rotating facts and tips on the lock screen",
-                "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager",
-                "RotatingLockScreenEnabled", 1, 0),
+                new("Allow Feedback Requests",
+                    "Let Windows ask for feedback periodically",
+                    "HKCU", @"SOFTWARE\Microsoft\Siuf\Rules",
+                    "NumberOfSIUFInPeriod", 1, 0) { DeleteOnEnable = true },
 
-            new("Lock Screen Slideshow",
-                "Photo slideshow on the lock screen",
-                "HKCU", @"SOFTWARE\Policies\Microsoft\Windows\Personalization",
-                "NoLockScreenSlideshow", 0, 1),
-        }),
+                new("App Diagnostic Access",
+                    "Allow apps to access diagnostic information",
+                    "HKLM", @"SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\appDiagnostics",
+                    "Value", "Allow", "Deny") { IsStringValue = true },
+            }),
 
-        new("Search & Assistant", new List<PrivacyToggleItem>
-        {
-            new("Search History on This Device",
-                "Store search history locally on this device",
-                "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\SearchSettings",
-                "IsDeviceSearchHistoryEnabled", 1, 0),
+            new("Advertising & Content", new List<PrivacyToggleItem>
+            {
+                new("Advertising ID",
+                    "Let apps use your advertising ID for targeted ads",
+                    "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo",
+                    "Enabled", 1, 0),
+            }),
 
-            new("Show Search Highlights",
-                "Display trending content in Windows Search",
-                "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Feeds\DSB",
-                "ShowDynamicContent", 1, 0),
+            new("Lock Screen", new List<PrivacyToggleItem>
+            {
+                new("Lock Workstation",
+                    "Allow locking the PC via Win+L, Start menu, and Ctrl+Alt+Del",
+                    "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System",
+                    "DisableLockWorkstation", 0, 1),
 
-            new("Allow Cortana",
-                "Enable Cortana voice assistant features",
-                "HKLM", @"SOFTWARE\Policies\Microsoft\Windows\Windows Search",
-                "AllowCortana", 1, 0),
-        }),
+                new("Windows Spotlight",
+                    "Dynamic backgrounds and content on lock screen",
+                    "HKCU", @"SOFTWARE\Policies\Microsoft\Windows\CloudContent",
+                    "DisableWindowsSpotlightFeatures", 0, 1),
+            }),
 
-        new("App Permissions", new List<PrivacyToggleItem>
-        {
-            new("Location Access",
-                "Allow apps to access your location",
-                "HKLM", @"SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location",
-                "Value", "Allow", "Deny") { IsStringValue = true },
+            new("Search & Assistant", new List<PrivacyToggleItem>
+            {
+                new("Search History on This Device",
+                    "Store search history locally on this device",
+                    "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\SearchSettings",
+                    "IsDeviceSearchHistoryEnabled", 1, 0),
 
-            new("Camera Access",
-                "Allow apps to access your camera",
-                "HKLM", @"SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam",
-                "Value", "Allow", "Deny") { IsStringValue = true },
+                new("Show Search Highlights",
+                    "Display trending content in Windows Search",
+                    "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Feeds\DSB",
+                    "ShowDynamicContent", 1, 0),
 
-            new("Microphone Access",
-                "Allow apps to access your microphone",
-                "HKLM", @"SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone",
-                "Value", "Allow", "Deny") { IsStringValue = true },
+                new("Allow Cortana",
+                    "Enable Cortana voice assistant features",
+                    "HKLM", @"SOFTWARE\Policies\Microsoft\Windows\Windows Search",
+                    "AllowCortana", 1, 0),
+            }),
 
-            new("User Account Info Access",
-                "Allow apps to access your account information",
-                "HKLM", @"SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\userAccountInformation",
-                "Value", "Allow", "Deny") { IsStringValue = true },
-        }),
+            new("App Permissions", new List<PrivacyToggleItem>
+            {
+                new("Location Access",
+                    "Allow apps to access your location",
+                    "HKLM", @"SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location",
+                    "Value", "Allow", "Deny") { IsStringValue = true },
 
-        new("Cloud & Backup", new List<PrivacyToggleItem>
-        {
-            new("Disable OneDrive Automatic Backup",
-                "Block OneDrive Known Folder Move (KFM) opt-in",
-                "HKLM", @"SOFTWARE\Policies\Microsoft\OneDrive",
-                "KFMBlockOptIn", 1, 0) { DefaultIsEnabled = false },
-        }),
-    };
+                new("Camera Access",
+                    "Allow apps to access your camera",
+                    "HKLM", @"SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam",
+                    "Value", "Allow", "Deny") { IsStringValue = true },
+
+                new("Microphone Access",
+                    "Allow apps to access your microphone",
+                    "HKLM", @"SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone",
+                    "Value", "Allow", "Deny") { IsStringValue = true },
+
+                new("User Account Info Access",
+                    "Allow apps to access your account information",
+                    "HKLM", @"SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\userAccountInformation",
+                    "Value", "Allow", "Deny") { IsStringValue = true },
+            }),
+
+            new("Cloud & Backup", new List<PrivacyToggleItem>
+            {
+                new("Disable OneDrive Automatic Backup",
+                    "Block OneDrive Known Folder Move (KFM) opt-in",
+                    "HKLM", @"SOFTWARE\Policies\Microsoft\OneDrive",
+                    "KFMBlockOptIn", 1, 0) { DefaultIsEnabled = false },
+            }),
+        };
+    }
 }

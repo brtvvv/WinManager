@@ -14,7 +14,6 @@ public class ProgramsViewModel : ObservableObject
 {
     private readonly WindowsAppService _windowsService;
     private readonly ExternalAppService _externalService;
-    private readonly AsyncRelayCommand _installWindowsCommand;
     private readonly AsyncRelayCommand _uninstallWindowsCommand;
     private readonly AsyncRelayCommand _refreshCommand;
     private readonly AsyncRelayCommand _installExternalCommand;
@@ -49,7 +48,6 @@ public class ProgramsViewModel : ObservableObject
 
         LoadCommand = new AsyncRelayCommand(InitializeAsync, () => !IsBusy);
         _refreshCommand = new AsyncRelayCommand(RefreshAsync, () => !IsBusy);
-        _installWindowsCommand = new AsyncRelayCommand(InstallSelectedWindowsAsync, CanRunWindowsAction);
         _uninstallWindowsCommand = new AsyncRelayCommand(UninstallSelectedWindowsAsync, CanRunWindowsAction);
         _installExternalCommand = new AsyncRelayCommand(InstallSelectedExternalAsync, CanRunExternalAction);
         _uninstallExternalCommand = new AsyncRelayCommand(UninstallSelectedExternalAsync, CanRunExternalAction);
@@ -70,7 +68,6 @@ public class ProgramsViewModel : ObservableObject
 
     public AsyncRelayCommand LoadCommand { get; }
     public AsyncRelayCommand RefreshCommand => _refreshCommand;
-    public AsyncRelayCommand InstallWindowsCommand => _installWindowsCommand;
     public AsyncRelayCommand UninstallWindowsCommand => _uninstallWindowsCommand;
     public AsyncRelayCommand InstallExternalCommand => _installExternalCommand;
     public AsyncRelayCommand UninstallExternalCommand => _uninstallExternalCommand;
@@ -195,35 +192,6 @@ public class ProgramsViewModel : ObservableObject
             ExternalApps.Add(app);
         }
         ExternalAppsView.Refresh();
-    }
-
-    private async Task InstallSelectedWindowsAsync()
-    {
-        var selected = WindowsApps.Where(x => x.IsSelected).ToList();
-        if (!selected.Any()) return;
-
-        _cts = new CancellationTokenSource();
-        try
-        {
-            IsBusy = true;
-            Status = $"Installing ({selected.Count})";
-            await _windowsService.InstallAsync(selected, AppendLog, _cts.Token, OnProgress);
-            await _windowsService.RefreshStatusAsync(selected, _cts.Token);
-            Status = "Ready";
-        }
-        catch (OperationCanceledException)
-        {
-            AppendLog("Installation cancelled.");
-            Status = "Cancelled";
-        }
-        finally
-        {
-            ResetProgress();
-            _cts?.Dispose();
-            _cts = null;
-            IsBusy = false;
-            RaiseCommandState();
-        }
     }
 
     private async Task UninstallSelectedWindowsAsync()
@@ -439,7 +407,6 @@ public class ProgramsViewModel : ObservableObject
 
     private void RaiseCommandState()
     {
-        _installWindowsCommand.RaiseCanExecuteChanged();
         _uninstallWindowsCommand.RaiseCanExecuteChanged();
         _installExternalCommand.RaiseCanExecuteChanged();
         _uninstallExternalCommand.RaiseCanExecuteChanged();

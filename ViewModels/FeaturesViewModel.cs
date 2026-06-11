@@ -124,7 +124,7 @@ public class FeaturesViewModel : ObservableObject
 
         IsBusy = true;
         var action = feature.IsEnabled ? "Disabling" : "Enabling";
-        StatusMessage = $"{action}: {feature.Name}...";
+        StatusMessage = $"{action}: {feature.Name}... (this can take several minutes)";
         ShowStatus = true;
 
         try
@@ -133,18 +133,21 @@ public class FeaturesViewModel : ObservableObject
                 ? $"Disable-WindowsOptionalFeature -Online -FeatureName '{feature.WindowsFeatureName}' -NoRestart"
                 : $"Enable-WindowsOptionalFeature -Online -FeatureName '{feature.WindowsFeatureName}' -All -NoRestart";
 
-            var result = await _runner.RunAsync("powershell.exe",
-                $"-NoProfile -ExecutionPolicy Bypass -Command \"{command}\"");
+            // Enable/Disable-WindowsOptionalFeature can run well past 5 minutes
+            // for large features (Hyper-V, WSL); the default timeout would kill
+            // the operation silently. Bump to 10 minutes.
+            var result = await RunPowerShellWithFallbackAsync(command,
+                timeout: TimeSpan.FromMinutes(10));
 
             await RefreshFeatureStateAsync(feature);
 
             StatusMessage = result.Success
-                ? $"{feature.Name} — {feature.StatusText.ToLowerInvariant()} successfully. Restart may be required."
-                : $"{feature.Name} — failed. {result.Output.Trim()}";
+                ? $"{feature.Name} \u2014 {feature.StatusText.ToLowerInvariant()} successfully. Restart may be required."
+                : $"{feature.Name} \u2014 failed. {result.Output.Trim()}";
         }
         catch (Exception ex)
         {
-            StatusMessage = $"{feature.Name} — error: {ex.Message}";
+            StatusMessage = $"{feature.Name} \u2014 error: {ex.Message}";
         }
         finally
         {
@@ -164,26 +167,46 @@ public class FeaturesViewModel : ObservableObject
         }
 
         IsBusy = true;
-        StatusMessage = $"Running: {item.Name}...";
+        StatusMessage = $"Working: {item.Name}...";
         ShowStatus = true;
 
         try
         {
-            var result = await _runner.RunAsync("powershell.exe",
-                $"-NoProfile -ExecutionPolicy Bypass -Command \"{item.PowerShellCommand}\"");
+            var result = await RunPowerShellWithFallbackAsync(item.PowerShellCommand);
 
             StatusMessage = result.Success
-                ? $"{item.Name} — completed successfully."
-                : $"{item.Name} — failed. {result.Output.Trim()}";
+                ? $"{item.Name} \u2014 completed successfully."
+                : $"{item.Name} \u2014 failed. {result.Output.Trim()}";
         }
         catch (Exception ex)
         {
-            StatusMessage = $"{item.Name} — error: {ex.Message}";
+            StatusMessage = $"{item.Name} \u2014 error: {ex.Message}";
         }
         finally
         {
             IsBusy = false;
         }
+    }
+
+    // On some 21H2 installs powershell.exe is not on PATH for child processes
+    // (rare but reported), so RunAsync("powershell.exe", ...) silently fails.
+    // Try the bare name first, then fall back to the absolute System32 path.
+    // The fallback only fires for ProcessRunner startup failures (-1 exit code
+    // with no output), not for timeouts or normal non-zero exits.
+    private async Task<ProcessResult> RunPowerShellWithFallbackAsync(string command,
+        TimeSpan? timeout = null)
+    {
+        var args = $"-NoProfile -ExecutionPolicy Bypass -Command \"{command}\"";
+
+        var first = await _runner.RunAsync("powershell.exe", args, timeout: timeout);
+        if (first.Success || first.ExitCode != -1 || first.Output.StartsWith("Timed out", StringComparison.OrdinalIgnoreCase))
+            return first;
+
+        const string fullPath = @"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe";
+        if (!System.IO.File.Exists(fullPath))
+            return first;
+
+        return await _runner.RunAsync(fullPath, args, timeout: timeout);
     }
 
     private async Task InstallAllDotNetAsync()

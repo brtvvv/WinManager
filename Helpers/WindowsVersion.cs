@@ -8,6 +8,17 @@ public static class WindowsVersion
     public static bool IsAtLeast23H2 => Build >= 22631;
     public static bool IsAtLeast24H2 => Build >= 26100;
 
+    public static bool IsProOrEnterprise
+    {
+        get
+        {
+            var edition = Microsoft.Win32.Registry.GetValue(
+                @"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion",
+                "EditionID", null)?.ToString();
+            return edition is "Professional" or "Enterprise" or "Education";
+        }
+    }
+
     public static string DisplayName => Build switch
     {
         >= 26100 => $"Windows 11 24H2 (build {Build})",

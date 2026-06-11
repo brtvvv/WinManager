@@ -115,8 +115,11 @@ public class PowerService
 
     public async Task<bool> SetHibernateAsync(bool enable)
     {
-        var result = await _runner.RunAsync("powershell.exe",
-            $"-NoProfile -ExecutionPolicy Bypass -Command \"powercfg {(enable ? "/hibernate on" : "/hibernate off")}\"");
+        // cmd.exe is guaranteed to exist and resolve powercfg correctly with
+        // current elevation; powershell.exe occasionally fails to launch on
+        // minimal/locked-down 21H2 images.
+        var result = await _runner.RunAsync("cmd.exe",
+            $"/c powercfg {(enable ? "/hibernate on" : "/hibernate off")}");
         return result.Success;
     }
 
