@@ -14,6 +14,7 @@ public class ProgramsViewModel : ObservableObject
 {
     private readonly WindowsAppService _windowsService;
     private readonly ExternalAppService _externalService;
+    private readonly UacService _uacService = new();
     private readonly AsyncRelayCommand _uninstallWindowsCommand;
     private readonly AsyncRelayCommand _refreshCommand;
     private readonly AsyncRelayCommand _installExternalCommand;
@@ -233,6 +234,19 @@ public class ProgramsViewModel : ObservableObject
         if (!selected.Any()) return;
 
         _cts = new CancellationTokenSource();
+
+        // Temporarily lower UAC to NeverNotify so per-installer elevation
+        // prompts don't interrupt the batch. Restored in the finally block.
+        var originalUac = _uacService.GetCurrentUacLevel();
+        var loweredUac = false;
+        if (originalUac != UacLevel.NeverNotify && _uacService.IsAdministrator)
+        {
+            Status = "Lowering UAC for install...";
+            var (ok, _, _) = _uacService.SetUacLevel(UacLevel.NeverNotify);
+            loweredUac = ok;
+            if (ok) AppendLog($"[UAC] Temporarily lowered from {originalUac} to NeverNotify for install batch.");
+        }
+
         try
         {
             IsBusy = true;
@@ -247,6 +261,14 @@ public class ProgramsViewModel : ObservableObject
         }
         finally
         {
+            if (loweredUac)
+            {
+                Status = $"Restoring UAC to {originalUac}...";
+                var (ok, _, _) = _uacService.SetUacLevel(originalUac);
+                AppendLog(ok
+                    ? $"[UAC] Restored to {originalUac}."
+                    : $"[UAC] WARNING: failed to restore UAC to {originalUac} — please reset manually.");
+            }
             ResetProgress();
             _cts?.Dispose();
             _cts = null;

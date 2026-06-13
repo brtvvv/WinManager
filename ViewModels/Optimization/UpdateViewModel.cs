@@ -1,3 +1,5 @@
+using System.ServiceProcess;
+using Microsoft.Win32;
 using WinManager.Common;
 using WinManager.Helpers;
 using WinManager.Models;
@@ -270,47 +272,148 @@ public class UpdateViewModel : OptimizationCategoryViewModelBase
         _deliveryOpt.IsChecking = false;
     }
 
-    private async Task<bool> WriteDeliveryOptAsync(bool enable)
+    private Task<bool> WriteDeliveryOptAsync(bool enable)
+    {
+        // All registry + service work done in-process so it cannot fail with
+        // "Run as administrator" from a child PowerShell whose token is filtered.
+        return Task.Run(() =>
+        {
+            try
+            {
+                const string keyPath = @"HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization";
+
+                if (enable)
+                {
+                    // Remove the policy value (if any) and bring DoSvc back to Manual.
+                    using (var k = Registry.LocalMachine.OpenSubKey(
+                        @"SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization", writable: true))
+                    {
+                        k?.DeleteValue("DODownloadMode", throwOnMissingValue: false);
+                    }
+                    SetServiceStartMode("DoSvc", ServiceStartMode.Manual);
+                    StartServiceSafe("DoSvc");
+                    return true;
+                }
+
+                // Disable: write policy, stop service, set to Disabled.
+                Registry.SetValue(keyPath, "DODownloadMode", 100, RegistryValueKind.DWord);
+                StopServiceSafe("DoSvc");
+                SetServiceStartMode("DoSvc", ServiceStartMode.Disabled);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        });
+    }
+
+    private static void StopServiceSafe(string name)
     {
         try
         {
-            var hp = @"HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization";
-            if (enable)
-                return await RunPsSuccessAsync(
-                    $"Remove-ItemProperty -Path '{hp}' -Name 'DODownloadMode' -EA SilentlyContinue");
-            return await RunPsSuccessAsync(
-                $"New-Item -Path '{hp}' -Force -EA SilentlyContinue | Out-Null; " +
-                $"Set-ItemProperty -Path '{hp}' -Name 'DODownloadMode' -Value 100 -Type DWord -Force");
+            using var sc = new ServiceController(name);
+            if (sc.Status != ServiceControllerStatus.Stopped)
+            {
+                sc.Stop();
+                sc.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(5));
+            }
         }
-        catch { return false; }
+        catch { }
+    }
+
+    private static void StartServiceSafe(string name)
+    {
+        try
+        {
+            using var sc = new ServiceController(name);
+            if (sc.Status != ServiceControllerStatus.Running)
+            {
+                sc.Start();
+                sc.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(5));
+            }
+        }
+        catch { }
+    }
+
+    private static void SetServiceStartMode(string name, ServiceStartMode mode)
+    {
+        // ServiceController has no public StartType setter pre-.NET 9, so we use sc.exe
+        var startArg = mode switch
+        {
+            ServiceStartMode.Disabled => "disabled",
+            ServiceStartMode.Manual => "demand",
+            ServiceStartMode.Automatic => "auto",
+            _ => "demand"
+        };
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo("sc.exe", $"config {name} start= {startArg}")
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            };
+            using var p = System.Diagnostics.Process.Start(psi);
+            p?.WaitForExit(3000);
+        }
+        catch { }
     }
 
     // ── MS Products (custom: COM API) ────────────────────────────
 
-    private async Task ReadMsProductsStateAsync()
+    private const string MsUpdateServiceId = "7971f918-a847-4430-9279-4a52d1efe18d";
+
+    private Task ReadMsProductsStateAsync()
     {
         try
         {
-            var result = await RunPsAsync(
-                "$svc = New-Object -ComObject Microsoft.Update.ServiceManager; " +
-                "if ($svc.Services | Where-Object { $_.ServiceID -eq '7971f918-a847-4430-9279-4a52d1efe18d' }) { 'True' } else { 'False' }");
-            _msProducts.IsEnabled = result.Trim().Equals("True", StringComparison.OrdinalIgnoreCase);
+            _msProducts.IsEnabled = IsMsUpdateServiceRegistered();
         }
         catch { _msProducts.IsEnabled = true; }
         _msProducts.IsChecking = false;
+        return Task.CompletedTask;
     }
 
     private async Task<bool> WriteMsProductsAsync(bool enable)
     {
+        // PowerShell child processes inherit a "filtered" admin token that
+        // makes Microsoft.Update.ServiceManager reject AddService2 with
+        // 0x80070005 on 25H2. We instantiate the COM object in-process from
+        // the already-elevated WinManager so the call succeeds.
+        return await Task.Run(() =>
+        {
+            try
+            {
+                var type = Type.GetTypeFromProgID("Microsoft.Update.ServiceManager");
+                if (type is null) return false;
+                dynamic mgr = Activator.CreateInstance(type)!;
+                mgr.ClientApplicationID = "WinManager";
+                if (enable)
+                    mgr.AddService2(MsUpdateServiceId, 7, "");
+                else
+                    mgr.RemoveService(MsUpdateServiceId);
+                return true;
+            }
+            catch { return false; }
+        });
+    }
+
+    private static bool IsMsUpdateServiceRegistered()
+    {
         try
         {
-            if (enable)
-                return await RunPsSuccessAsync(
-                    "$svc = New-Object -ComObject Microsoft.Update.ServiceManager; " +
-                    "$svc.AddService2('7971f918-a847-4430-9279-4a52d1efe18d', 7, '')");
-            return await RunPsSuccessAsync(
-                "$svc = New-Object -ComObject Microsoft.Update.ServiceManager; " +
-                "$svc.RemoveService('7971f918-a847-4430-9279-4a52d1efe18d')");
+            var type = Type.GetTypeFromProgID("Microsoft.Update.ServiceManager");
+            if (type is null) return false;
+            dynamic mgr = Activator.CreateInstance(type)!;
+            foreach (var svc in mgr.Services)
+            {
+                if (string.Equals((string)svc.ServiceID, MsUpdateServiceId,
+                        StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            return false;
         }
         catch { return false; }
     }

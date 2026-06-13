@@ -1,3 +1,7 @@
+using System.Runtime.InteropServices;
+using System.Security.AccessControl;
+using System.Security.Principal;
+using Microsoft.Win32;
 using WinManager.Models;
 
 namespace WinManager.Services;
@@ -6,6 +10,34 @@ public class PrivacySettingsService
 {
     private readonly ProcessRunner _runner = new();
     private static readonly SemaphoreSlim _concurrency = new(8);
+
+    // PowerShell child processes inherit a fresh token without the privileges
+    // required to take ownership of ConsentStore keys (owned by TrustedInstaller).
+    // We enable SeTakeOwnershipPrivilege + SeRestorePrivilege in-process, then
+    // use the .NET registry API to set the owner, grant FullControl, and write.
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool OpenProcessToken(IntPtr h, uint a, out IntPtr t);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool LookupPrivilegeValue(string? s, string n, out long luid);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool AdjustTokenPrivileges(IntPtr t, bool d, ref TOKEN_PRIVILEGES n, int b, IntPtr p, IntPtr l);
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetCurrentProcess();
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct TOKEN_PRIVILEGES { public int Count; public long Luid; public int Attr; }
+
+    private static void EnablePrivilege(string name)
+    {
+        if (!OpenProcessToken(GetCurrentProcess(), 0x28, out var tok)) return;
+        if (!LookupPrivilegeValue(null, name, out var luid)) return;
+        var tp = new TOKEN_PRIVILEGES { Count = 1, Luid = luid, Attr = 2 /* SE_PRIVILEGE_ENABLED */ };
+        AdjustTokenPrivileges(tok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);
+    }
 
     public async Task ReadAllStatesAsync(IEnumerable<PrivacyToggleItem> items)
     {
@@ -107,39 +139,82 @@ public class PrivacySettingsService
         }
     }
 
-    private async Task<bool> WriteConsentStoreValueAsync(PrivacyToggleItem item, object value)
+    private Task<bool> WriteConsentStoreValueAsync(PrivacyToggleItem item, object value)
     {
-        var fullKey = $"HKLM\\{item.Path}";
-        var psKey = $"HKLM:\\{item.Path}";
-        var script =
-            $"$key = '{fullKey}'; $ps = '{psKey}'; " +
-            "$acl = (Get-Item -Path Registry::$key).GetAccessControl(); " +
-            "$rule = New-Object System.Security.AccessControl.RegistryAccessRule(" +
-            "[System.Security.Principal.NTAccount]'Administrators','FullControl','Allow'); " +
-            "$acl.SetAccessRule($rule); " +
-            "(Get-Item -Path Registry::$key).SetAccessControl($acl); " +
-            $"Set-ItemProperty -Path $ps -Name '{item.ValueName}' -Value '{value}' -Type String -Force";
-        return await RunPsSuccessAsync(script);
+        return Task.Run(() => WriteConsentStoreInProcess(item.Path, item.ValueName, value.ToString() ?? ""));
     }
 
-    private async Task<bool> WriteRegistryValueAsync(PrivacyToggleItem item, object value)
+    private static bool WriteConsentStoreInProcess(string subKey, string name, string value)
     {
-        var hp = $"{item.Hive}:\\{item.Path}";
-        var type = item.IsStringValue ? "String" : "DWord";
-        var valLiteral = item.IsStringValue ? $"'{value}'" : value.ToString();
-
-        var cmd = $"New-Item -Path '{hp}' -Force -EA SilentlyContinue | Out-Null; " +
-                  $"Set-ItemProperty -Path '{hp}' -Name '{item.ValueName}' -Value {valLiteral} -Type {type} -Force";
-
-        if (item.ExtraValueNames is { Length: > 0 })
+        try
         {
-            foreach (var extra in item.ExtraValueNames)
-            {
-                cmd += $"; Set-ItemProperty -Path '{hp}' -Name '{extra}' -Value {valLiteral} -Type {type} -Force";
-            }
-        }
+            EnablePrivilege("SeTakeOwnershipPrivilege");
+            EnablePrivilege("SeRestorePrivilege");
 
-        return await RunPsSuccessAsync(cmd);
+            using var key = Registry.LocalMachine.OpenSubKey(
+                subKey, RegistryKeyPermissionCheck.ReadWriteSubTree,
+                RegistryRights.TakeOwnership | RegistryRights.ChangePermissions | RegistryRights.SetValue);
+            if (key is null) return false;
+
+            var sec = key.GetAccessControl();
+            sec.SetOwner(new NTAccount("Administrators"));
+            key.SetAccessControl(sec);
+
+            sec = key.GetAccessControl();
+            sec.AddAccessRule(new RegistryAccessRule(
+                new NTAccount("Administrators"),
+                RegistryRights.FullControl, AccessControlType.Allow));
+            key.SetAccessControl(sec);
+
+            key.SetValue(name, value, RegistryValueKind.String);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    // Writes a registry value using the .NET API directly. This avoids the
+    // PowerShell `New-Item -Path X -Force` pitfall: on an existing key that
+    // cmdlet RECREATES the key, wiping all sibling values. Multiple toggles
+    // pointing at the same key (e.g. all four AppPrivacy policies, or
+    // SearchboxTaskbarMode + cache) would erase each other's writes.
+    // Registry.SetValue only creates the key when missing; never wipes.
+    private Task<bool> WriteRegistryValueAsync(PrivacyToggleItem item, object value)
+    {
+        return Task.Run(() =>
+        {
+            try
+            {
+                var root = item.Hive switch
+                {
+                    "HKLM" => @"HKEY_LOCAL_MACHINE\",
+                    "HKCU" => @"HKEY_CURRENT_USER\",
+                    "HKCR" => @"HKEY_CLASSES_ROOT\",
+                    "HKU"  => @"HKEY_USERS\",
+                    _ => null
+                };
+                if (root is null) return false;
+
+                var keyPath = root + item.Path;
+                var kind = item.IsStringValue ? RegistryValueKind.String : RegistryValueKind.DWord;
+                object writeVal = item.IsStringValue ? value.ToString() ?? "" : Convert.ToInt32(value);
+
+                Registry.SetValue(keyPath, item.ValueName, writeVal, kind);
+
+                if (item.ExtraValueNames is { Length: > 0 })
+                {
+                    foreach (var extra in item.ExtraValueNames)
+                        Registry.SetValue(keyPath, extra, writeVal, kind);
+                }
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        });
     }
 
     public async Task<string[]> GetCurrentDnsServersAsync()

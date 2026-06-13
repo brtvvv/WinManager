@@ -11,7 +11,6 @@ public class PrivacySecurityViewModel : OptimizationCategoryViewModelBase
 {
     private readonly UacService _uacService = new();
     private readonly PrivacySettingsService _privacyService = new();
-    private readonly ProcessRunner _runner = new();
     private UacOption? _selectedUacOption;
     private DnsProvider? _selectedDnsProvider;
     private string _statusMessage = string.Empty;
@@ -179,7 +178,6 @@ public class PrivacySecurityViewModel : OptimizationCategoryViewModelBase
 
         if (success)
         {
-            await ApplyPrivacyExtrasAsync(item, target);
             await _privacyService.ReadStateAsync(item);
             item.IsChecking = false;
             StatusMessage = $"{item.Name} \u2014 {item.StatusText.ToLowerInvariant()} successfully.";
@@ -187,41 +185,6 @@ public class PrivacySecurityViewModel : OptimizationCategoryViewModelBase
         else
         {
             StatusMessage = $"{item.Name} \u2014 failed. Run as administrator.";
-        }
-    }
-
-    // 25H2 ignores certain HKCU privacy values in favour of HKLM policies.
-    // After the primary write succeeds, mirror the user's choice into the
-    // policy so behaviour matches the toggle on modern builds.
-    private async Task ApplyPrivacyExtrasAsync(PrivacyToggleItem item, bool target)
-    {
-        switch (item.Name)
-        {
-            case "Tailored Experiences":
-            {
-                // target = true (allowed) ⇒ delete value; false (denied) ⇒ 1
-                var hp = @"HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent";
-                var script = target
-                    ? $"New-Item -Path '{hp}' -Force -EA SilentlyContinue | Out-Null; " +
-                      "Remove-ItemProperty -Path '" + hp + "' -Name 'DisableTailoredExperiencesWithDiagnosticData' -EA SilentlyContinue"
-                    : $"New-Item -Path '{hp}' -Force -EA SilentlyContinue | Out-Null; " +
-                      "Set-ItemProperty -Path '" + hp + "' -Name 'DisableTailoredExperiencesWithDiagnosticData' -Value 1 -Type DWord -Force";
-                await _runner.RunAsync("powershell.exe",
-                    $"-NoProfile -ExecutionPolicy Bypass -Command \"{script}\"");
-                break;
-            }
-            case "App Diagnostic Access":
-            {
-                // target = true ("Allow") ⇒ 1; false ("Deny") ⇒ 2
-                var policyVal = target ? 1 : 2;
-                var hp = @"HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy";
-                var script =
-                    $"New-Item -Path '{hp}' -Force -EA SilentlyContinue | Out-Null; " +
-                    $"Set-ItemProperty -Path '{hp}' -Name 'LetAppsGetDiagnosticInfo' -Value {policyVal} -Type DWord -Force";
-                await _runner.RunAsync("powershell.exe",
-                    $"-NoProfile -ExecutionPolicy Bypass -Command \"{script}\"");
-                break;
-            }
         }
     }
 
@@ -298,10 +261,10 @@ public class PrivacySecurityViewModel : OptimizationCategoryViewModelBase
                     "HKLM", @"SOFTWARE\Policies\Microsoft\Windows\DataCollection",
                     "AllowTelemetry", 3, 0),
 
-                new("Tailored Experiences",
-                    "Personalized tips based on diagnostic data",
-                    "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Privacy",
-                    "TailoredExperiencesWithDiagnosticDataEnabled", 1, 0),
+                new("Suppress First-Login Privacy Prompts",
+                    "Stop Windows from re-asking about location, diagnostics and personalization on next boot",
+                    "HKLM", @"SOFTWARE\Policies\Microsoft\Windows\OOBE",
+                    "DisablePrivacyExperience", 1, 0) { DefaultIsEnabled = false },
 
                 new("Allow Feedback Requests",
                     "Let Windows ask for feedback periodically",
@@ -309,9 +272,9 @@ public class PrivacySecurityViewModel : OptimizationCategoryViewModelBase
                     "NumberOfSIUFInPeriod", 1, 0) { DeleteOnEnable = true },
 
                 new("App Diagnostic Access",
-                    "Allow apps to access diagnostic information",
-                    "HKLM", @"SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\appDiagnostics",
-                    "Value", "Allow", "Deny") { IsStringValue = true },
+                    "Allow apps to access diagnostic information (system-wide policy)",
+                    "HKLM", @"SOFTWARE\Policies\Microsoft\Windows\AppPrivacy",
+                    "LetAppsGetDiagnosticInfo", 1, 2) { DefaultIsEnabled = true },
             }),
 
             new("Advertising & Content", new List<PrivacyToggleItem>
@@ -342,38 +305,41 @@ public class PrivacySecurityViewModel : OptimizationCategoryViewModelBase
                     "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\SearchSettings",
                     "IsDeviceSearchHistoryEnabled", 1, 0),
 
-                new("Show Search Highlights",
-                    "Display trending content in Windows Search",
-                    "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Feeds\DSB",
-                    "ShowDynamicContent", 1, 0),
-
                 new("Allow Cortana",
                     "Enable Cortana voice assistant features",
                     "HKLM", @"SOFTWARE\Policies\Microsoft\Windows\Windows Search",
                     "AllowCortana", 1, 0),
             }),
 
+            // App permission toggles use HKLM AppPrivacy policy keys: 1 = force
+            // allow, 2 = force deny. This is the Group Policy ("Computer
+            // Configuration > Windows Components > App Privacy") path, writable
+            // by Administrators without taking ownership. The legacy
+            // CapabilityAccessManager\ConsentStore values are owned by
+            // TrustedInstaller and silently no-op on writes — we don't touch
+            // them anymore. Default = enabled (= "Allow") because Windows
+            // default is to permit access when no policy is set.
             new("App Permissions", new List<PrivacyToggleItem>
             {
                 new("Location Access",
-                    "Allow apps to access your location",
-                    "HKLM", @"SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location",
-                    "Value", "Allow", "Deny") { IsStringValue = true },
+                    "Allow apps to access your location (system-wide policy)",
+                    "HKLM", @"SOFTWARE\Policies\Microsoft\Windows\AppPrivacy",
+                    "LetAppsAccessLocation", 1, 2) { DefaultIsEnabled = true },
 
                 new("Camera Access",
-                    "Allow apps to access your camera",
-                    "HKLM", @"SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam",
-                    "Value", "Allow", "Deny") { IsStringValue = true },
+                    "Allow apps to access your camera (system-wide policy)",
+                    "HKLM", @"SOFTWARE\Policies\Microsoft\Windows\AppPrivacy",
+                    "LetAppsAccessCamera", 1, 2) { DefaultIsEnabled = true },
 
                 new("Microphone Access",
-                    "Allow apps to access your microphone",
-                    "HKLM", @"SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone",
-                    "Value", "Allow", "Deny") { IsStringValue = true },
+                    "Allow apps to access your microphone (system-wide policy)",
+                    "HKLM", @"SOFTWARE\Policies\Microsoft\Windows\AppPrivacy",
+                    "LetAppsAccessMicrophone", 1, 2) { DefaultIsEnabled = true },
 
                 new("User Account Info Access",
-                    "Allow apps to access your account information",
-                    "HKLM", @"SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\userAccountInformation",
-                    "Value", "Allow", "Deny") { IsStringValue = true },
+                    "Allow apps to access your account information (system-wide policy)",
+                    "HKLM", @"SOFTWARE\Policies\Microsoft\Windows\AppPrivacy",
+                    "LetAppsAccessAccountInfo", 1, 2) { DefaultIsEnabled = true },
             }),
 
             new("Cloud & Backup", new List<PrivacyToggleItem>
