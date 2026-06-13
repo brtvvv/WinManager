@@ -16,15 +16,20 @@ public class FeaturesViewModel : ObservableObject
     {
         DownloadItems = new List<FeatureItem>
         {
-            new("All .NET Framework",
-                "Enable-WindowsOptionalFeature -Online -FeatureName NetFx3 -All -NoRestart",
-                "Install")
+            new("All .NET Runtimes (6, 7, 8, 9)",
+                // PowerShell text is unused for this item — InstallAllDotNetAsync
+                // handles the install steps. Kept non-empty for the existing
+                // generic path so it remains backward-compatible.
+                "noop",
+                "Install",
+                description: "Installs .NET Desktop Runtimes 6 through 9 via winget. For .NET Framework 3.5 use the Windows Features toggle below.")
         };
 
         EnableItems = new List<WindowsFeatureItem>
         {
             new("Hyper-V Virtualization", "Microsoft-Hyper-V-All"),
             new("Legacy Media", "WindowsMediaPlayer"),
+            new("Legacy .NET Framework 3.5", "NetFx3"),
             new("NFS", "ServicesForNFS-ClientOnly"),
             new("Windows Sandbox", "Containers-DisposableClientVM"),
             new("WSL", "Microsoft-Windows-Subsystem-Linux")
@@ -196,7 +201,7 @@ public class FeaturesViewModel : ObservableObject
         if (item is null || IsBusy)
             return;
 
-        if (item.Name == "All .NET Framework")
+        if (item.Name.StartsWith("All .NET Runtimes", StringComparison.OrdinalIgnoreCase))
         {
             await InstallAllDotNetAsync();
             return;
@@ -254,6 +259,9 @@ public class FeaturesViewModel : ObservableObject
         return await _runner.RunAsync(fullPath, args, timeout: timeout);
     }
 
+    // .NET 3.5 has its own dedicated EnableItems toggle now and is handled by
+    // OnToggleFeature via Enable/Disable-WindowsOptionalFeature. This method
+    // only installs the four winget desktop runtimes.
     private async Task InstallAllDotNetAsync()
     {
         IsBusy = true;
@@ -262,18 +270,16 @@ public class FeaturesViewModel : ObservableObject
 
         try
         {
-            StatusMessage = "Installing .NET Framework 3.5...";
-            await _runner.RunAsync("dism.exe",
-                "/online /enable-feature /featurename:NetFx3 /all /norestart /LimitAccess",
-                timeout: TimeSpan.FromMinutes(10));
-            if (!await IsNetFx3EnabledAsync()) missing.Add(".NET Framework 3.5");
-
             foreach (var major in new[] { 6, 7, 8, 9 })
             {
                 StatusMessage = $"Installing .NET {major} Runtime...";
                 await _runner.RunAsync("winget",
                     $"install --id Microsoft.DotNet.DesktopRuntime.{major} --exact --silent --accept-source-agreements --accept-package-agreements",
                     timeout: TimeSpan.FromMinutes(5));
+
+                // winget exits non-zero for benign outcomes (already installed,
+                // no applicable upgrade). Treat the step as successful as long
+                // as the runtime is genuinely present on disk afterwards.
                 if (!await IsDesktopRuntimeInstalledAsync(major))
                     missing.Add($".NET {major} Desktop Runtime");
             }
@@ -284,7 +290,7 @@ public class FeaturesViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusMessage = $"All .NET Framework \u2014 error: {ex.Message}";
+            StatusMessage = $"All .NET Runtimes \u2014 error: {ex.Message}";
         }
         finally
         {
@@ -292,24 +298,33 @@ public class FeaturesViewModel : ObservableObject
         }
     }
 
-    // winget exits non-zero for benign outcomes ("already installed", "no
-    // applicable upgrade found"). Verify each runtime by querying `dotnet`
-    // itself instead of trusting the exit code.
     private async Task<bool> IsDesktopRuntimeInstalledAsync(int major)
     {
         var result = await _runner.RunAsync("dotnet", "--list-runtimes",
             timeout: TimeSpan.FromSeconds(30));
-        if (!result.Success) return false;
-        var prefix = $"Microsoft.WindowsDesktop.App {major}.";
-        return result.Output?.Contains(prefix, StringComparison.OrdinalIgnoreCase) == true;
-    }
+        if (result.Success)
+        {
+            var prefix = $"Microsoft.WindowsDesktop.App {major}.";
+            if (result.Output?.Contains(prefix, StringComparison.OrdinalIgnoreCase) == true)
+                return true;
+        }
 
-    private async Task<bool> IsNetFx3EnabledAsync()
-    {
-        var result = await _runner.RunAsync("dism.exe",
-            "/online /get-featureinfo /featurename:NetFx3",
-            timeout: TimeSpan.FromMinutes(2));
-        if (!result.Success) return false;
-        return result.Output?.IndexOf("State : Enabled", StringComparison.OrdinalIgnoreCase) >= 0;
+        // If `dotnet` itself is missing from PATH (common right after a fresh
+        // install without a re-login) verify by looking for the version-folder
+        // directly on disk.
+        try
+        {
+            var dir = $@"C:\Program Files\dotnet\shared\Microsoft.WindowsDesktop.App";
+            if (System.IO.Directory.Exists(dir))
+            {
+                var prefix = $"{major}.";
+                return System.IO.Directory.EnumerateDirectories(dir)
+                    .Select(System.IO.Path.GetFileName)
+                    .Any(n => n is not null && n.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+            }
+        }
+        catch { /* ignore IO errors */ }
+
+        return false;
     }
 }

@@ -12,18 +12,25 @@ public class NotificationsViewModel : OptimizationCategoryViewModelBase
     private bool _showStatus;
 
     private readonly PrivacyToggleItem _showNotificationsItem;
+    private readonly PrivacyToggleItem _systemTrayItem;
 
     public NotificationsViewModel() : base("Notifications")
     {
         // NoToastApplicationNotification under the Explorer policy key is the
         // system-wide kill switch for all toast notifications. Enabled = 0
         // (no policy = notifications on), Disabled = 1 (policy set = off).
-        // We also mirror the user-scope ToastEnabled value (different key) in
-        // the toggle handler so legacy UWP/WinRT toast sources also honour it.
+        // On 25H2 toasts flow through wpnuserservice which also reads
+        // DisableNotificationCenter + ToastEnabled — we write all three in
+        // ApplyShowNotificationsExtrasAsync after the primary SetStateAsync.
         _showNotificationsItem = new("Show Notifications",
             "Enable or disable all Windows toast notifications globally. A sign-out or Explorer restart may be needed for full effect.",
             "HKCU", @"SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\PushNotifications",
             "NoToastApplicationNotification", 0, 1);
+
+        _systemTrayItem = new("Show Notifications in the System Tray",
+            "Display notification badges and alerts in the taskbar system tray area",
+            "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Notifications\Settings",
+            "NOC_GLOBAL_SETTING_BADGE_ENABLED", 1, 0);
 
         ToggleGroups = new List<PrivacyToggleGroup>
         {
@@ -41,10 +48,7 @@ public class NotificationsViewModel : OptimizationCategoryViewModelBase
                     "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Notifications\Settings",
                     "NOC_GLOBAL_SETTING_ALLOW_TOASTS_ABOVE_LOCK", 1, 0),
 
-                new("Show Notifications in the System Tray",
-                    "Display notification badges and alerts in the taskbar system tray area",
-                    "HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Notifications\Settings",
-                    "NOC_GLOBAL_SETTING_BADGE_ENABLED", 1, 0),
+                _systemTrayItem,
             }),
         };
 
@@ -89,18 +93,9 @@ public class NotificationsViewModel : OptimizationCategoryViewModelBase
         if (success)
         {
             if (item == _showNotificationsItem)
-            {
-                // Secondary write: HKCU\...\PushNotifications\ToastEnabled —
-                // different key path than the policy, so we can't piggy-back
-                // on ExtraValueNames. Mirror the state so apps that still
-                // check the legacy value honour the user's choice. The user
-                // perspective is: target = true ⇒ notifications on ⇒
-                // ToastEnabled = 1; target = false ⇒ ToastEnabled = 0.
-                var toast = target ? 1 : 0;
-                var ts = @"HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\PushNotifications";
-                await _runner.RunAsync("powershell.exe",
-                    $"-NoProfile -ExecutionPolicy Bypass -Command \"New-Item -Path '{ts}' -Force -EA SilentlyContinue | Out-Null; Set-ItemProperty -Path '{ts}' -Name 'ToastEnabled' -Value {toast} -Type DWord -Force\"");
-            }
+                await ApplyShowNotificationsExtrasAsync(target);
+            else if (item == _systemTrayItem)
+                await ApplySystemTrayExtrasAsync(target);
 
             await _service.ReadStateAsync(item);
             item.IsChecking = false;
@@ -110,5 +105,38 @@ public class NotificationsViewModel : OptimizationCategoryViewModelBase
         {
             StatusMessage = $"{item.Name} \u2014 failed. Run as administrator.";
         }
+    }
+
+    // 25H2 routes toasts through wpnuserservice. The user-visible "Show
+    // Notifications" must update three values together: the Explorer policy
+    // DisableNotificationCenter, the per-user PushNotifications ToastEnabled,
+    // and a service restart so wpnuserservice re-reads them.
+    private async Task ApplyShowNotificationsExtrasAsync(bool enable)
+    {
+        var policyVal = enable ? 0 : 1;
+        var userVal = enable ? 1 : 0;
+        var script =
+            "$pol = 'HKCU:\\SOFTWARE\\Policies\\Microsoft\\Windows\\Explorer'; " +
+            "New-Item -Path $pol -Force -EA SilentlyContinue | Out-Null; " +
+            $"Set-ItemProperty -Path $pol -Name 'DisableNotificationCenter' -Value {policyVal} -Type DWord -Force; " +
+            "$push = 'HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\PushNotifications'; " +
+            "New-Item -Path $push -Force -EA SilentlyContinue | Out-Null; " +
+            $"Set-ItemProperty -Path $push -Name 'ToastEnabled' -Value {userVal} -Type DWord -Force; " +
+            "Restart-Service -Name WpnUserService* -Force -EA SilentlyContinue";
+        await _runner.RunAsync("powershell.exe",
+            $"-NoProfile -ExecutionPolicy Bypass -Command \"{script}\"");
+    }
+
+    // Tray badge visibility lives in Advanced\EnableAutoTray (0 = always show
+    // all icons, 1 = auto-hide). Changes only apply once Explorer is restarted.
+    private async Task ApplySystemTrayExtrasAsync(bool enable)
+    {
+        var autoTray = enable ? 0 : 1;
+        var script =
+            "$adv = 'HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced'; " +
+            $"Set-ItemProperty -Path $adv -Name 'EnableAutoTray' -Value {autoTray} -Type DWord -Force; " +
+            "Stop-Process -Name explorer -Force -EA SilentlyContinue; Start-Process explorer";
+        await _runner.RunAsync("powershell.exe",
+            $"-NoProfile -ExecutionPolicy Bypass -Command \"{script}\"");
     }
 }

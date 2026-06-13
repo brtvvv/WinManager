@@ -87,12 +87,39 @@ public class PrivacySettingsService
             }
 
             var value = enable ? item.EnabledValue : item.DisabledValue;
+
+            // The CapabilityAccessManager\ConsentStore tree is owned by
+            // TrustedInstaller on 22H2+. Set-ItemProperty silently no-ops as
+            // Administrator, so SetStateAsync would "succeed" but the value
+            // would never change. Take ownership of the key first, then write.
+            if (item.Hive == "HKLM" &&
+                item.Path.IndexOf(@"CapabilityAccessManager\ConsentStore",
+                    StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return await WriteConsentStoreValueAsync(item, value);
+            }
+
             return await WriteRegistryValueAsync(item, value);
         }
         catch
         {
             return false;
         }
+    }
+
+    private async Task<bool> WriteConsentStoreValueAsync(PrivacyToggleItem item, object value)
+    {
+        var fullKey = $"HKLM\\{item.Path}";
+        var psKey = $"HKLM:\\{item.Path}";
+        var script =
+            $"$key = '{fullKey}'; $ps = '{psKey}'; " +
+            "$acl = (Get-Item -Path Registry::$key).GetAccessControl(); " +
+            "$rule = New-Object System.Security.AccessControl.RegistryAccessRule(" +
+            "[System.Security.Principal.NTAccount]'Administrators','FullControl','Allow'); " +
+            "$acl.SetAccessRule($rule); " +
+            "(Get-Item -Path Registry::$key).SetAccessControl($acl); " +
+            $"Set-ItemProperty -Path $ps -Name '{item.ValueName}' -Value '{value}' -Type String -Force";
+        return await RunPsSuccessAsync(script);
     }
 
     private async Task<bool> WriteRegistryValueAsync(PrivacyToggleItem item, object value)

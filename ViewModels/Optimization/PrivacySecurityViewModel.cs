@@ -11,6 +11,7 @@ public class PrivacySecurityViewModel : OptimizationCategoryViewModelBase
 {
     private readonly UacService _uacService = new();
     private readonly PrivacySettingsService _privacyService = new();
+    private readonly ProcessRunner _runner = new();
     private UacOption? _selectedUacOption;
     private DnsProvider? _selectedDnsProvider;
     private string _statusMessage = string.Empty;
@@ -178,13 +179,49 @@ public class PrivacySecurityViewModel : OptimizationCategoryViewModelBase
 
         if (success)
         {
+            await ApplyPrivacyExtrasAsync(item, target);
             await _privacyService.ReadStateAsync(item);
             item.IsChecking = false;
-            StatusMessage = $"{item.Name} — {item.StatusText.ToLowerInvariant()} successfully.";
+            StatusMessage = $"{item.Name} \u2014 {item.StatusText.ToLowerInvariant()} successfully.";
         }
         else
         {
-            StatusMessage = $"{item.Name} — failed. Run as administrator.";
+            StatusMessage = $"{item.Name} \u2014 failed. Run as administrator.";
+        }
+    }
+
+    // 25H2 ignores certain HKCU privacy values in favour of HKLM policies.
+    // After the primary write succeeds, mirror the user's choice into the
+    // policy so behaviour matches the toggle on modern builds.
+    private async Task ApplyPrivacyExtrasAsync(PrivacyToggleItem item, bool target)
+    {
+        switch (item.Name)
+        {
+            case "Tailored Experiences":
+            {
+                // target = true (allowed) ⇒ delete value; false (denied) ⇒ 1
+                var hp = @"HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent";
+                var script = target
+                    ? $"New-Item -Path '{hp}' -Force -EA SilentlyContinue | Out-Null; " +
+                      "Remove-ItemProperty -Path '" + hp + "' -Name 'DisableTailoredExperiencesWithDiagnosticData' -EA SilentlyContinue"
+                    : $"New-Item -Path '{hp}' -Force -EA SilentlyContinue | Out-Null; " +
+                      "Set-ItemProperty -Path '" + hp + "' -Name 'DisableTailoredExperiencesWithDiagnosticData' -Value 1 -Type DWord -Force";
+                await _runner.RunAsync("powershell.exe",
+                    $"-NoProfile -ExecutionPolicy Bypass -Command \"{script}\"");
+                break;
+            }
+            case "App Diagnostic Access":
+            {
+                // target = true ("Allow") ⇒ 1; false ("Deny") ⇒ 2
+                var policyVal = target ? 1 : 2;
+                var hp = @"HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy";
+                var script =
+                    $"New-Item -Path '{hp}' -Force -EA SilentlyContinue | Out-Null; " +
+                    $"Set-ItemProperty -Path '{hp}' -Name 'LetAppsGetDiagnosticInfo' -Value {policyVal} -Type DWord -Force";
+                await _runner.RunAsync("powershell.exe",
+                    $"-NoProfile -ExecutionPolicy Bypass -Command \"{script}\"");
+                break;
+            }
         }
     }
 
