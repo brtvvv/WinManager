@@ -1,6 +1,116 @@
 # WinManager
 
-**Your Windows companion** — kompleksowy menedżer konfiguracji dla Windows 11. Instalacja i deinstalacja aplikacji, zarządzanie funkcjami systemu, prywatnością, zasilaniem, aktualizacjami, personalizacja paska zadań i menu Start, eksport/import konfiguracji.
+**Your Windows companion** — a comprehensive configuration manager for Windows 11. Install and uninstall apps, manage system features, privacy, power, updates, customize the taskbar and Start menu, export and import full configurations.
+
+Built as an engineering thesis project. Desktop application on .NET 9 / WPF, MVVM, dark theme.
+
+> **Requirements:** Windows 11 (build 22000+, primarily tested on 25H2 Pro) · running as Administrator recommended for full functionality
+
+[Polska wersja niżej ↓](#winmanager-pl)
+
+---
+
+## Features
+
+### Programs & Features
+- Uninstall preinstalled Windows apps (Camera, Maps, OneNote, Xbox, Phone Link, …) with a search filter and batch selection
+- Install and uninstall external applications via `winget` (Chrome, Firefox, VS Code, Steam, OBS, Notepad++, 7-Zip and more) — UAC is automatically lowered for the duration of the install batch and restored afterwards
+- Enable / disable Windows optional features: Hyper-V, WSL, Windows Sandbox, NFS, Legacy Media, .NET Framework 3.5
+- One-click installer for all current .NET Desktop Runtimes (6, 7, 8, 9)
+- Shortcuts: network reset, system integrity scan (SFC), autologin setup
+
+### Customization
+- **Start Menu** — clean pinned apps, hide/show Recommended section, recently added and most used apps, disable Bing search
+- **Taskbar** — search box mode (Hidden / Icon / Icon + label / Search box), alignment (left / center), Task View, Copilot, Widgets, End Task; clean pinned items
+- **Theme** — dark / light mode with automatic Explorer restart
+
+### Optimization
+- **Gaming & performance** — Game Mode, mouse acceleration, Background Apps, Storage Sense, enhanced search indexing
+- **Notifications** — global toggle, sounds, lock screen, system tray
+- **Sound** — system startup sound
+- **Power** — power plan selection, hibernation, display / disk / sleep timeouts, power button & lid actions, min/max processor state, wireless adapter power saving
+- **Privacy & security** — UAC level, DNS provider (Default / Google / Cloudflare / Quad9 + DNS over HTTPS), telemetry, advertising ID, Windows Spotlight, app access to location / camera / microphone / account, OneDrive automatic backup blocker, OOBE-style privacy prompt suppressor on next login
+- **Updates** — presets (Normal / Security only / Disabled), Delivery Optimization, Microsoft Store auto-update, restart deferral, updates for other Microsoft products
+
+### Configuration
+- Export and import the full configuration to a JSON file
+- Loading a config from the welcome screen shows a progress dialog and applies all changes automatically
+
+### Misc
+- Quick access to system panels: Computer Management, Control Panel, Network Connections, Power Options, Printers, System Properties, Date & Time
+- Automatic Windows version and edition detection shown in the header
+
+---
+
+## Installation
+
+### Stable version (recommended)
+
+```powershell
+iex (irm https://raw.githubusercontent.com/brtvvv/WinManager/main/install.ps1)
+```
+
+The script downloads the latest release from GitHub, installs to `%LOCALAPPDATA%\WinManager` and creates a desktop shortcut.
+
+### Development version (build from the `dev` branch)
+
+```powershell
+iex (irm https://raw.githubusercontent.com/brtvvv/WinManager/dev/install-dev.ps1)
+```
+
+Fetches the latest automatic build from the `dev` branch (pre-release `dev-latest`). The desktop shortcut is named **WinManager DEV**.
+
+---
+
+## Building from source
+
+Requires **.NET 9 SDK**.
+
+```powershell
+git clone https://github.com/brtvvv/WinManager.git
+cd WinManager
+dotnet build -c Release
+dotnet run
+```
+
+Build a self-contained single-file `.exe`:
+
+```powershell
+dotnet publish WinManager.csproj `
+    -r win-x64 -c Release `
+    -p:PublishSingleFile=true `
+    -p:IncludeNativeLibrariesForSelfExtract=true `
+    --self-contained true `
+    -o ./publish
+```
+
+---
+
+## Tech stack
+
+- **.NET 9** / **WPF**
+- **MVVM** architecture (custom `ObservableObject`, `RelayCommand`, `AsyncRelayCommand`)
+- Direct registry access via `Microsoft.Win32.Registry` (in-process, not through PowerShell)
+- Win32 P/Invoke (`SystemParametersInfo`, `SendMessageTimeout`, token privileges)
+- Service management via `System.ServiceProcess.ServiceController`
+- COM interop with `Microsoft.Update.ServiceManager`
+- `powercfg`, `winget`, `DISM` for system operations
+- GitHub Actions CI/CD (workflows for `main` releases and `dev` pre-releases)
+
+---
+
+## License
+
+MIT
+
+---
+---
+
+<a id="winmanager-pl"></a>
+
+# WinManager (PL)
+
+**Your Windows companion** — kompleksowy menedżer konfiguracji dla Windows 11. Instalacja i deinstalacja aplikacji, zarządzanie funkcjami systemu, prywatnością, zasilaniem, aktualizacjami, personalizacja paska zadań i menu Start, eksport / import pełnej konfiguracji.
 
 Zbudowany jako praca inżynierska. Aplikacja desktopowa .NET 9 / WPF, MVVM, dark theme.
 
@@ -42,7 +152,7 @@ Zbudowany jako praca inżynierska. Aplikacja desktopowa .NET 9 / WPF, MVVM, dark
 
 ## Instalacja
 
-### Wersja stabilna (zalecane)
+### Wersja stabilna (zalecana)
 
 ```powershell
 iex (irm https://raw.githubusercontent.com/brtvvv/WinManager/main/install.ps1)
